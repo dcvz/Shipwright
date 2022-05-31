@@ -95,10 +95,6 @@ INC_DIRS := $(addprefix -I, \
 	libultraship \
 )
 
-ifeq ($(UNAME), Darwin) #APPLE
-	INC_DIRS += -Ilibultraship/Lib/metal-cpp
-endif
-
 # create build directories
 $(shell mkdir -p $(SRC_DIRS:%=build/%))
 
