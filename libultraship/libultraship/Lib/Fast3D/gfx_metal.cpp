@@ -1,7 +1,14 @@
+#ifdef ENABLE_METAL
+
 #ifndef _LANGUAGE_C
 #define _LANGUAGE_C
 #endif
 #include "PR/ultra64/gbi.h"
+
+#define NS_PRIVATE_IMPLEMENTATION
+#define CA_PRIVATE_IMPLEMENTATION
+#define MTL_PRIVATE_IMPLEMENTATION
+#include <Metal/Metal.hpp>
 
 // create metal renderer based on gfx_opengl.cpp
 
@@ -43,3 +50,4 @@ struct GfxRenderingAPI gfx_metal_api = {
     gfx_metal_set_texture_filter,
     gfx_metal_get_texture_filter
 }
+#endif

@@ -36,7 +36,7 @@ ifeq ($(UNAME), Darwin) #APPLE
 	CXXFLAGS += -Wno-deprecated-enum-enum-conversion -DENABLE_METAL
 	CPPFLAGS += -DENABLE_METAL
 	CPPFLAGS += $(shell pkg-config --cflags sdl2 glew)
-	LIBS += -framework OpenGL -framework Metal -framework MetalKit -framework Cocoa -framework IOKit -framework CoreVideo -framework QuartzCore
+	LIBS += -framework OpenGL -framework Foundation -framework Metal -framework QuartzCore
 endif
 
 ifneq ($(DEBUG),0)
@@ -94,6 +94,10 @@ INC_DIRS := $(addprefix -I, \
 	libultraship/Lib/ImGui \
 	libultraship \
 )
+
+ifeq ($(UNAME), Darwin) #APPLE
+	INC_DIRS += -Ilibultraship/Lib/metal-cpp
+endif
 
 # create build directories
 $(shell mkdir -p $(SRC_DIRS:%=build/%))

@@ -145,8 +145,8 @@ namespace SohImGui {
         switch (impl.backend) {
         case Backend::SDL:
             #if defined(ENABLE_METAL)
-                CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(renderer);
-                layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+                // CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(renderer);
+                // layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
                 ImGui_ImplMetal_Init(layer.device);
             #else
                 ImGui_ImplOpenGL3_Init("#version 120");
