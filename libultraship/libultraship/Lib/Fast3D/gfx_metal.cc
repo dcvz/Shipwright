@@ -10,37 +10,65 @@
 #define NS_PRIVATE_IMPLEMENTATION
 #define CA_PRIVATE_IMPLEMENTATION
 #define MTL_PRIVATE_IMPLEMENTATION
+#include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
+#include <QuartzCore/QuartzCore.hpp>
 
 #include "Lib/ImGui/backends/imgui_impl_metal.h"
 
 // ImGui & SDL Wrappers
 
+// this will be used to store the data created between gfx calls
+static struct {
+    SDL_Renderer* renderer;
+    CA::MetalLayer* layer;
+    MTL::CommandQueue* command_queue;
+} metal;
+
+void Metal_CreateLayer(SDL_Renderer* renderer) {
+    metal.renderer = renderer;
+    metal.layer = SDL_RenderGetMetalLayer(renderer);
+    metal.layer->pixelFormat = PixelFormatBGRA8Unorm;
+}
+
 bool SDL2_InitForMetal(SDL_Window* window) {
     return ImGui_ImplSDL2_InitForMetal(window);
+
+    // translate to C++ and store these for later use.
+    // can we maybe use: SDL_Metal_GetLayer?
+    metal.command_queue = metal.layer.device->newCommandQueue;
+    MTL::RenderPassDescriptor* pass_descriptor = MTL::RenderPassDescriptor::alloc()->init();
 }
 
 bool Metal_Init() {
-    // TODO: convert these to their c++ equivalent
-    //CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(renderer);
-    //layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    ImGui_ImplMetal_Init(layer.device);
+    return ImGui_ImplMetal_Init(layer.device);
 }
 
 void Metal_NewFrame() {
-    // TODO: 
+    int width, height;
+    SDL_GetRendererOutputSize(metal.renderer, &width, &height);
+    //metal.layer.drawableSize = CGSizeMake(width, height);
+
+    // grab next drawable, grab commmand buffer from command queue.
+    // grab render encoder & do something with it?
+
     ImGui_ImplMetal_NewFrame(renderPassDescriptor);
 }
 
 void Metal_RenderDrawData(ImDrawData* draw_data) {
-    // TODO: 
-    ImGui_ImplMetal_RenderDrawData(data, commandBuffer, renderEncoder);
+    ImGui_ImplMetal_RenderDrawData(draw_data, metal.commandBuffer, metal.renderEncoder);
 }
 
 // create metal renderer based on gfx_opengl.cpp
 
-int gfx_metal_create_framebuffer(void) {
-    
+int gfx_metal_create_framebuffer(void) {}
+
+void gfx_metal_end_frame(void) {
+    renderEncoder->popDebugGroup();
+    renderEncoder->endEncoding();
+
+    commandBuffer.presentDrawable(layer.nextDrawable);
+    commandBuffer.commit();
 }
 
 struct GfxRenderingAPI gfx_metal_api = {
