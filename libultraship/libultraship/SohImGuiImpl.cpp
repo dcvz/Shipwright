@@ -27,8 +27,7 @@
 #include "Utils/StringHelper.h"
 
 #ifdef ENABLE_METAL
-#include "Lib/ImGui/backends/imgui_impl_sdl.h"
-#include "Lib/ImGui/backends/imgui_impl_metal.h"
+#include "Lib/Fast3D/gfx_metal.h"
 #endif
 
 #ifdef ENABLE_OPENGL
@@ -125,7 +124,7 @@ namespace SohImGui {
         switch (impl.backend) {
         case Backend::SDL:
             #if defined(ENABLE_METAL)
-            ImGui_ImplSDL2_InitForMetal(static_cast<SDL_Window*>(impl.sdl.window));
+            SDL2_InitForMetal(static_cast<SDL_Window*>(impl.sdl.window));
             #else
             ImGui_ImplSDL2_InitForOpenGL(static_cast<SDL_Window*>(impl.sdl.window), impl.sdl.context);
             #endif
@@ -145,9 +144,7 @@ namespace SohImGui {
         switch (impl.backend) {
         case Backend::SDL:
             #if defined(ENABLE_METAL)
-                // CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(renderer);
-                // layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-                ImGui_ImplMetal_Init(layer.device);
+                Metal_Init();
             #else
                 ImGui_ImplOpenGL3_Init("#version 120");
             #endif
@@ -181,11 +178,7 @@ namespace SohImGui {
     void ImGuiWMNewFrame() {
         switch (impl.backend) {
         case Backend::SDL:
-        #if defined(ENABLE_METAL)
-            ImGui_ImplSDL2_NewFrame_Metal(static_cast<SDL_Window*>(impl.sdl.window));
-        #else
             ImGui_ImplSDL2_NewFrame(static_cast<SDL_Window*>(impl.sdl.window));
-        #endif
             break;
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
         case Backend::DX11:
@@ -201,7 +194,7 @@ namespace SohImGui {
         switch (impl.backend) {
         case Backend::SDL:
         #if defined(ENABLE_METAL)
-            ImGui_ImplMetal_NewFrame(renderPassDescriptor);
+            Metal_NewFrame();
         #else
             ImGui_ImplOpenGL3_NewFrame();
         #endif
@@ -220,7 +213,7 @@ namespace SohImGui {
         switch (impl.backend) {
         case Backend::SDL:
         #if defined(ENABLE_METAL)
-            ImGui_ImplMetal_RenderDrawData(data, commandBuffer, renderEncoder);
+            Metal_RenderDrawData(data);
         #else
             ImGui_ImplOpenGL3_RenderDrawData(data);
         #endif

@@ -24,7 +24,6 @@ WARN := -Wall -Wextra -Werror \
 CXXFLAGS := $(WARN) -std=c++20 -D_GNU_SOURCE -DENABLE_OPENGL -DSPDLOG_ACTIVE_LEVEL=0
 CFLAGS := $(WARN) -std=c99 -D_GNU_SOURCE -DENABLE_OPENGL -DSPDLOG_ACTIVE_LEVEL=0
 CPPFLAGS := -MMD
-MMFLAGS := -ObjC++ -fobjc-weak -fobjc-arc
 LIBS =
 
 ifeq ($(UNAME), Linux) #LINUX
@@ -33,7 +32,7 @@ ifeq ($(UNAME), Linux) #LINUX
 endif
 
 ifeq ($(UNAME), Darwin) #APPLE
-	CXXFLAGS += -Wno-deprecated-enum-enum-conversion -DENABLE_METAL
+	CXXFLAGS += -Wno-deprecated-enum-enum-conversion -Wno-ignored-qualifiers -DENABLE_METAL
 	CPPFLAGS += -DENABLE_METAL
 	CPPFLAGS += $(shell pkg-config --cflags sdl2 glew)
 	LIBS += -framework OpenGL -framework Foundation -framework Metal -framework QuartzCore
@@ -66,20 +65,19 @@ CXX_FILES := \
 	libultraship/Lib/StrHash64.cpp \
 	libultraship/Lib/tinyxml2/tinyxml2.cpp
 
-MM_FILES := \
-	$(shell find libultraship/Lib/Fast3D -name *.mm) \
-	libultraship/Lib/ImGui/backends/imgui_impl_metal.mm \
-
 C_FILES := \
 	libultraship/mixer.c \
 	libultraship/Lib/stb/stb_impl.c
+
+CC_FILES := \
+	$(shell find libultraship/Lib/Fast3D -name *.cc)
 
 FMT_FILES := $(shell find libultraship/ -type f \( -name *.cpp -o -name *.h \) -a -not -path "libultraship/Lib/*")
 
 O_FILES   := \
 	$(CXX_FILES:%.cpp=build/%.o) \
 	$(C_FILES:%.c=build/%.o) \
-	$(MM_FILES:%.mm=build/%.o)
+	$(CC_FILES:%.cc=build/%.o)
 
 D_FILES   := $(O_FILES:%.o=%.d)
 
@@ -114,9 +112,8 @@ build/%.o: %.cpp
 build/%.o: %.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(OPTFLAGS) $(INC_DIRS) -c $< -o $@
 
-build/%.o: %.mm
-	$(MM) $(CXXFLAGS) $(MMFLAGS) $(CPPFLAGS) $(OPTFLAGS) $(INC_DIRS) -c $< -o $@
-
+build/%.o: %.cc
+	$(MM) $(CXXFLAGS) $(CPPFLAGS) $(OPTFLAGS) $(INC_DIRS) -Ilibultraship/Lib/metal-cpp -c $< -o $@
 
 $(LIB): $(O_FILES)
 	$(AR) rcs $@ $^ $(LIBS)

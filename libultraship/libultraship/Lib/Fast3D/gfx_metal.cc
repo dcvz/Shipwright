@@ -1,3 +1,5 @@
+#include "gfx_metal.h"
+
 #ifdef ENABLE_METAL
 
 #ifndef _LANGUAGE_C
@@ -9,6 +11,31 @@
 #define CA_PRIVATE_IMPLEMENTATION
 #define MTL_PRIVATE_IMPLEMENTATION
 #include <Metal/Metal.hpp>
+
+#include "Lib/ImGui/backends/imgui_impl_metal.h"
+
+// ImGui & SDL Wrappers
+
+bool SDL2_InitForMetal(SDL_Window* window) {
+    return ImGui_ImplSDL2_InitForMetal(window);
+}
+
+bool Metal_Init() {
+    // TODO: convert these to their c++ equivalent
+    //CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(renderer);
+    //layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    ImGui_ImplMetal_Init(layer.device);
+}
+
+void Metal_NewFrame() {
+    // TODO: 
+    ImGui_ImplMetal_NewFrame(renderPassDescriptor);
+}
+
+void Metal_RenderDrawData(ImDrawData* draw_data) {
+    // TODO: 
+    ImGui_ImplMetal_RenderDrawData(data, commandBuffer, renderEncoder);
+}
 
 // create metal renderer based on gfx_opengl.cpp
 
