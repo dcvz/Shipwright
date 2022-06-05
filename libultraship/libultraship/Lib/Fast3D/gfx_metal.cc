@@ -62,6 +62,10 @@ void Metal_RenderDrawData(ImDrawData* draw_data) {
 
 // create metal renderer based on gfx_opengl.cpp
 
+static void gfx_metal_init(void) {
+    // TODO: implement
+}
+
 static struct GfxClipParameters gfx_metal_get_clip_parameters() {
     // TODO: implement
     return { true, false };
