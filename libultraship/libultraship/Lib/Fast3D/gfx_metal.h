@@ -6,6 +6,8 @@
 
 extern struct GfxRenderingAPI gfx_metal_api;
 
+void Metal_CreateLayer(SDL_Renderer* renderer);
+
 bool SDL2_InitForMetal(SDL_Window* window);
 
 bool Metal_Init();

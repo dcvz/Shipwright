@@ -15,6 +15,7 @@
 #include "SDL_opengl.h"
 #elif __APPLE__
 #include <SDL.h>
+#include "gfx_metal.h"
 #else
 #include <SDL2/SDL.h>
 #define GL_GLEXT_PROTOTYPES 1
@@ -159,11 +160,11 @@ static void gfx_sdl_init(const char *game_name, bool start_in_fullscreen) {
     }
 
     #if defined(ENABLE_METAL)
-        SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        SDL_Renderer* renderer = SDL_CreateRenderer(wnd, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
         if (renderer == NULL)
         {
             printf("Error creating renderer: %s\n", SDL_GetError());
-            return -3;
+            return;
         }
 
         Metal_CreateLayer(renderer);
