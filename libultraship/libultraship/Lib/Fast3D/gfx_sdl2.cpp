@@ -167,7 +167,7 @@ static void gfx_sdl_init(const char *game_name, bool start_in_fullscreen) {
             return;
         }
 
-        Metal_CreateLayer(renderer);
+        Metal_SetRenderer(renderer);
     #endif
 
     ctx = SDL_GL_CreateContext(wnd);

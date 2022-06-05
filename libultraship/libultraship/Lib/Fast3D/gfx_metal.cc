@@ -19,51 +19,57 @@
 
 // ImGui & SDL Wrappers
 
-// this will be used to store the data created between gfx calls
-static struct {
-    SDL_Renderer* renderer;
-    CA::MetalLayer* layer;
-    MTL::CommandQueue* command_queue;
-} metal;
+static SDL_Renderer* _renderer;
+static CA::MetalLayer* layer;
+static MTL::CommandQueue* command_queue;
+static MTL::RenderPassDescriptor* pass_descriptor;
+static MTL::CommandBuffer* current_command_buffer;
+static MTL::RenderCommandEncoder* current_render_encoder;
 
-void Metal_CreateLayer(SDL_Renderer* renderer) {
-    metal.renderer = renderer;
-    metal.layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(renderer);
-    metal.layer->pixelFormat = PixelFormatBGRA8Unorm;
-}
-
-bool SDL2_InitForMetal(SDL_Window* window) {
-    return ImGui_ImplSDL2_InitForMetal(window);
-
-    // translate to C++ and store these for later use.
-    // can we maybe use: SDL_Metal_GetLayer?
-    metal.command_queue = metal.layer->device->newCommandQueue;
-    MTL::RenderPassDescriptor* pass_descriptor = MTL::RenderPassDescriptor::alloc()->init();
+void Metal_SetRenderer(SDL_Renderer* renderer) {
+    _renderer = renderer;
 }
 
 bool Metal_Init() {
-    return ImGui_ImplMetal_Init(layer.device);
+    MTL::Device* device = layer->device();
+    bool result = ImGui_ImplMetal_Init(device);
+    if (!result) return result;
+
+    command_queue = device->newCommandQueue();
+    pass_descriptor = MTL::RenderPassDescriptor::alloc()->init();
+
+    return result;
 }
 
 void Metal_NewFrame() {
     int width, height;
-    SDL_GetRendererOutputSize(metal.renderer, &width, &height);
-    //metal.layer.drawableSize = CGSizeMake(width, height);
+    SDL_GetRendererOutputSize(_renderer, &width, &height);
+    layer->setWidth(width);
+    layer->setHeight(height);
 
-    // grab next drawable, grab commmand buffer from command queue.
-    // grab render encoder & do something with it?
+    CA::MetalDrawable* drawable = layer->nextDrawable();
 
-    ImGui_ImplMetal_NewFrame(renderPassDescriptor);
+    current_command_buffer = command_queue->commandBuffer();
+    pass_descriptor->colorAttachments()->object(0)->setClearColor(MTL::ClearColor(0.45, 0.55, 0.60, 1.00));
+    pass_descriptor->colorAttachments()->object(0)->setTexture(drawable->texture());
+    pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadAction::LoadActionClear);
+    pass_descriptor->colorAttachments()->object(0)->setStoreAction(MTL::StoreAction::StoreActionStore);
+
+    current_render_encoder = current_command_buffer->renderCommandEncoder(pass_descriptor);
+    current_render_encoder->pushDebugGroup(NS::String::alloc()->init("SoH ImGui", NS::StringEncoding::UTF8StringEncoding));
+
+    ImGui_ImplMetal_NewFrame(pass_descriptor);
 }
 
 void Metal_RenderDrawData(ImDrawData* draw_data) {
-    ImGui_ImplMetal_RenderDrawData(draw_data, metal.commandBuffer, metal.renderEncoder);
+    ImGui_ImplMetal_RenderDrawData(draw_data, current_command_buffer, current_render_encoder);
 }
 
 // create metal renderer based on gfx_opengl.cpp
 
 static void gfx_metal_init(void) {
-    // TODO: implement
+    layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    layer->setPixelFormat(MTL::PixelFormat.PixelFormatBGRA8Unorm);
 }
 
 static struct GfxClipParameters gfx_metal_get_clip_parameters() {
@@ -145,11 +151,11 @@ static void gfx_metal_start_frame(void) {
 
 void gfx_metal_end_frame(void) {
     // TODO: implement
-    renderEncoder->popDebugGroup();
-    renderEncoder->endEncoding();
+    current_render_encoder->popDebugGroup();
+    current_render_encoder->endEncoding();
 
-    commandBuffer.presentDrawable(layer.nextDrawable);
-    commandBuffer.commit();
+    current_command_buffer->presentDrawable(layer->nextDrawable());
+    current_command_buffer->commit();
 }
 
 static void gfx_metal_finish_render(void) {

@@ -124,7 +124,7 @@ namespace SohImGui {
         switch (impl.backend) {
         case Backend::SDL:
             #if defined(ENABLE_METAL)
-            SDL2_InitForMetal(static_cast<SDL_Window*>(impl.sdl.window));
+            ImGui_ImplSDL2_InitForMetal(static_cast<SDL_Window*>(impl.sdl.window));
             #else
             ImGui_ImplSDL2_InitForOpenGL(static_cast<SDL_Window*>(impl.sdl.window), impl.sdl.context);
             #endif
@@ -178,7 +178,7 @@ namespace SohImGui {
     void ImGuiWMNewFrame() {
         switch (impl.backend) {
         case Backend::SDL:
-            ImGui_ImplSDL2_NewFrame(static_cast<SDL_Window*>(impl.sdl.window));
+            ImGui_ImplSDL2_NewFrame();
             break;
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
         case Backend::DX11:
