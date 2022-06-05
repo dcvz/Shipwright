@@ -21,7 +21,6 @@
 // ImGui & SDL Wrappers
 
 static SDL_Renderer* _renderer;
-static CA::MetalLayer* layer;
 static MTL::CommandQueue* command_queue;
 static MTL::RenderPipelineDescriptor* pipeline_descriptor;
 static MTL::RenderPassDescriptor* render_pass_descriptor;
@@ -34,6 +33,7 @@ void Metal_SetRenderer(SDL_Renderer* renderer) {
 }
 
 bool Metal_Init() {
+    auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
     MTL::Device* device = layer->device();
     bool result = ImGui_ImplMetal_Init(device);
     if (!result) return result;
@@ -47,6 +47,8 @@ bool Metal_Init() {
 void Metal_NewFrame() {
     int width, height;
     SDL_GetRendererOutputSize(_renderer, &width, &height);
+
+    auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
     layer->setWidth(width);
     layer->setHeight(height);
 
@@ -74,8 +76,8 @@ void Metal_RenderDrawData(ImDrawData* draw_data) {
 // create metal renderer based on gfx_opengl.cpp
 
 static void gfx_metal_init(void) {
-    layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    layer->setPixelFormat(MTL::PixelFormat.PixelFormatBGRA8Unorm);
+    auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
 }
 
 static struct GfxClipParameters gfx_metal_get_clip_parameters() {
@@ -143,6 +145,7 @@ static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool z_upd) {
         depth_descriptor->setDepthWriteEnabled(true);
         depth_descriptor->setDepthCompareFunction(depth_test ? MTL::CompareFunctionLess : MTL::CompareFunctionAlways);
 
+        auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
         MTL::DepthStencilState* depth_stencil_state = layer->device()->newDepthStencilState(depth_descriptor);
         current_render_encoder->setDepthStencilState(depth_stencil_state);
     } else {
@@ -190,6 +193,7 @@ void gfx_metal_end_frame(void) {
     current_render_encoder->popDebugGroup();
     current_render_encoder->endEncoding();
 
+    auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
     current_command_buffer->presentDrawable(layer->nextDrawable());
     current_command_buffer->commit();
 }
