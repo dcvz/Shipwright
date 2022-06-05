@@ -16,13 +16,16 @@
 
 #include "Lib/SDL/SDL2/SDL_render.h"
 #include "Lib/ImGui/backends/imgui_impl_metal.h"
+#include "gfx_cc.h"
 
 // ImGui & SDL Wrappers
 
 static SDL_Renderer* _renderer;
 static CA::MetalLayer* layer;
 static MTL::CommandQueue* command_queue;
-static MTL::RenderPassDescriptor* pass_descriptor;
+static MTL::RenderPipelineDescriptor* pipeline_descriptor;
+static MTL::RenderPassDescriptor* render_pass_descriptor;
+
 static MTL::CommandBuffer* current_command_buffer;
 static MTL::RenderCommandEncoder* current_render_encoder;
 
@@ -36,7 +39,7 @@ bool Metal_Init() {
     if (!result) return result;
 
     command_queue = device->newCommandQueue();
-    pass_descriptor = MTL::RenderPassDescriptor::alloc()->init();
+    render_pass_descriptor = MTL::RenderPassDescriptor::alloc()->init();
 
     return result;
 }
@@ -50,15 +53,18 @@ void Metal_NewFrame() {
     CA::MetalDrawable* drawable = layer->nextDrawable();
 
     current_command_buffer = command_queue->commandBuffer();
-    pass_descriptor->colorAttachments()->object(0)->setClearColor(MTL::ClearColor(0.45, 0.55, 0.60, 1.00));
-    pass_descriptor->colorAttachments()->object(0)->setTexture(drawable->texture());
-    pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadAction::LoadActionClear);
-    pass_descriptor->colorAttachments()->object(0)->setStoreAction(MTL::StoreAction::StoreActionStore);
+    render_pass_descriptor->colorAttachments()->object(0)->setClearColor(MTL::ClearColor(0.45, 0.55, 0.60, 1.00));
+    render_pass_descriptor->colorAttachments()->object(0)->setTexture(drawable->texture());
+    render_pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
+    //render_pass_descriptor->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
 
-    current_render_encoder = current_command_buffer->renderCommandEncoder(pass_descriptor);
-    current_render_encoder->pushDebugGroup(NS::String::alloc()->init("SoH ImGui", NS::StringEncoding::UTF8StringEncoding));
+    current_render_encoder = current_command_buffer->renderCommandEncoder(render_pass_descriptor);
+    current_render_encoder->pushDebugGroup(NS::String::alloc()->init("SoH ImGui", NS::UTF8StringEncoding));
 
-    ImGui_ImplMetal_NewFrame(pass_descriptor);
+    MTL::RenderPipelineState* pipeline_state = layer->device()->newRenderPipelineState(pipeline_descriptor);
+    current_render_encoder->setRenderPipelineState(pipeline_state);
+
+    ImGui_ImplMetal_NewFrame(render_pass_descriptor);
 }
 
 void Metal_RenderDrawData(ImDrawData* draw_data) {
@@ -86,7 +92,16 @@ static void gfx_metal_load_shader(struct ShaderProgram *new_prg) {
 }
 
 static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shader_id0, uint32_t shader_id1) {
-    // TODO: implement
+    CCFeatures cc_features;
+    gfx_cc_get_features(shader_id0, shader_id1, &cc_features);
+
+    pipeline_descriptor = MTL::RenderPipelineDescriptor::alloc()->init();
+
+    if (cc_features.opt_alpha) {
+        pipeline_descriptor->colorAttachments()->object(0)->setBlendingEnabled(true);
+        pipeline_descriptor->colorAttachments()->object(0)->setSourceRGBBlendFactor(MTL::BlendFactorSourceAlpha);
+        pipeline_descriptor->colorAttachments()->object(0)->setDestinationRGBBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
+    }
 }
 
 static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
@@ -117,24 +132,46 @@ static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint3
     // TODO: implement
 }
 
-static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) {
-    // TODO: implement
+static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool z_upd) {
+    // Use a depth-stencil state object created from a descriptor
+    // whose depthCompareFunction is not MTLCompareFunctionAlways.
+    if (depth_test || z_upd) {
+        // glEnable(GL_DEPTH_TEST);
+        // glDepthMask(z_upd ? GL_TRUE : GL_FALSE);
+        // glDepthFunc(depth_test ? GL_LEQUAL : GL_ALWAYS);
+        MTL::DepthStencilDescriptor* depth_descriptor = MTL::DepthStencilDescriptor::alloc()->init();
+        depth_descriptor->setDepthWriteEnabled(true);
+        depth_descriptor->setDepthCompareFunction(depth_test ? MTL::CompareFunctionLess : MTL::CompareFunctionAlways);
+
+        MTL::DepthStencilState* depth_stencil_state = layer->device()->newDepthStencilState(depth_descriptor);
+        current_render_encoder->setDepthStencilState(depth_stencil_state);
+    } else {
+        current_render_encoder->setDepthStencilState(NULL);
+    }
 }
 
 static void gfx_metal_set_zmode_decal(bool zmode_decal) {
-    // TODO: implement
+    if (zmode_decal) {
+        // glPolygonOffset(-2, -2);
+        // glEnable(GL_POLYGON_OFFSET_FILL);
+        current_render_encoder->setDepthBias(-2, -2, 0.0);
+    } else {
+        // glPolygonOffset(0, 0);
+        // glDisable(GL_POLYGON_OFFSET_FILL);
+        current_render_encoder->setDepthBias(0.0, 0.0, 0.0);
+    }
 }
 
 static void gfx_metal_set_viewport(int x, int y, int width, int height) {
-    // TODO: implement
+    current_render_encoder->setViewport({ x, y, width, height, 0, 1 });
 }
 
 static void gfx_metal_set_scissor(int x, int y, int width, int height) {
-    // TODO: implement
+    current_render_encoder->setScissorRect({ x, y, width, height });
 }
 
 static void gfx_metal_set_use_alpha(bool use_alpha) {
-    // TODO: implement
+    // Already part of the pipeline state from shader info
 }
 
 static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
@@ -150,7 +187,6 @@ static void gfx_metal_start_frame(void) {
 }
 
 void gfx_metal_end_frame(void) {
-    // TODO: implement
     current_render_encoder->popDebugGroup();
     current_render_encoder->endEncoding();
 
