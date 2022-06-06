@@ -16,6 +16,7 @@
 #include "gfx_cc.h"
 
 static SDL_Renderer* _renderer;
+static id<MTLDevice> mDevice;
 static id<MTLCommandQueue> commandQueue;
 
 static id<MTLRenderPipelineState> mPipelineState;
@@ -46,10 +47,11 @@ bool Metal_Init() {
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
     layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
 
-    bool result = ImGui_ImplMetal_Init(layer.device);
+    mDevice = layer.device;
+    bool result = ImGui_ImplMetal_Init(mDevice);
     if (!result) return result;
 
-    commandQueue = [layer.device newCommandQueue];
+    commandQueue = [mDevice newCommandQueue];
 
     metal_ctx.textures = [[NSMutableArray alloc] init];
 
@@ -143,8 +145,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     }
 
     NSError* error = nil;
-    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    mPipelineState = [layer.device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
+    mPipelineState = [mDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
 
     if (!mPipelineState) {
         // Pipeline State creation could fail if we haven't properly set up our pipeline descriptor.
@@ -206,8 +207,7 @@ static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint3
     samplerDescriptor.sAddressMode = gfx_cm_to_metal(cms);
     samplerDescriptor.tAddressMode = gfx_cm_to_metal(cmt);
 
-    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    id<MTLSamplerState> sampler = [layer.device newSamplerStateWithDescriptor:samplerDescriptor];
+    id<MTLSamplerState> sampler = [mDevice newSamplerStateWithDescriptor:samplerDescriptor];
 
     // TODO: choose the correct texture data index to pass this to.
     [mRenderEncoder setFragmentSamplerState:sampler atIndex:0];
@@ -218,8 +218,7 @@ static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) 
     [depthDescriptor setDepthWriteEnabled: depth_test || depth_mask ? YES : NO];
     [depthDescriptor setDepthCompareFunction: depth_test ? MTLCompareFunctionLess : MTLCompareFunctionAlways];
 
-    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    id<MTLDepthStencilState> depthStencilState = [layer.device newDepthStencilStateWithDescriptor: depthDescriptor];
+    id<MTLDepthStencilState> depthStencilState = [mDevice newDepthStencilStateWithDescriptor: depthDescriptor];
     [currentRenderEncoder setDepthStencilState:depthStencilState];
 }
 
@@ -255,9 +254,8 @@ static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
 
     // Create Index Buffer
 
-    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    id <MTLBuffer> indexBuffer = [layer.device newBufferWithLength:sizeof(float) * buf_vbo_len
-                                        options:MTLResourceOptionCPUCacheModeDefault];
+    id <MTLBuffer> indexBuffer = [mDevice newBufferWithLength:sizeof(float) * buf_vbo_len
+                                                      options:MTLResourceOptionCPUCacheModeDefault];
     [indexBuffer setLabel:@"IBO"];
     memcpy(indexBuffer.contents, buf_vbo, sizeof(float) * buf_vbo_len);
 
