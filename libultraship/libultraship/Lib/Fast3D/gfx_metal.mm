@@ -23,6 +23,13 @@ static id<MTLRenderPipelineState> mPipelineState;
 static id<MTLCommandBuffer> mCommandBuffer;
 static id <MTLRenderCommandEncoder> mRenderEncoder;
 
+struct ShaderProgramMetal {
+    uint8_t num_inputs;
+    uint8_t num_floats;
+    bool used_textures[2];
+};
+
+static map<pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
 static FilteringMode current_filter_mode = THREE_POINT;
 
 static struct {
@@ -112,7 +119,6 @@ static void gfx_metal_init(void) {
 }
 
 static struct GfxClipParameters gfx_metal_get_clip_parameters() {
-    // TODO: implement
     return { true, false };
 }
 
@@ -143,6 +149,8 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         pipelineDescriptor.colorAttachments[0].blendingEnabled = NO;
         pipelineDescriptor.colorAttachments[0].writeMask = MTLColorWriteMaskAll;
     }
+
+    struct ShaderProgramMetal *prg = &shader_program_pool[make_pair(shader_id0, shader_id1)];
 
     NSError* error = nil;
     mPipelineState = [mDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
@@ -181,7 +189,23 @@ static void gfx_metal_select_texture(int tile, uint32_t texture_id) {
 }
 
 static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, uint32_t height) {
-    // TODO: implement
+    MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:width height:height mipmapped:YES];
+
+    textureDescriptor.sampleCount = 1;
+//    textureDescriptor.usage = MTLTextureUsageShaderRead;
+//    textureDescriptor.cpuCacheMode = MTLCPUCacheModeDefaultCache;
+
+    id<MTLTexture> texture = [mDevice newTextureWithDescriptor:textureDescriptor];
+    texture.width = width;
+    texture.height = height;
+    [metal_ctx.textures addObject:texture];
+
+    MTLRegion region = MTLRegionMake2D(0, 0, width, height);
+    NSUInteger bytesPerPixel = 4;
+    [texture replaceRegion:region mipmapLevel:0 withBytes:rgba32_buf bytesPerRow:width * bytesPerPixel];
+
+    // TODO: choose the correct index to pass this to.
+    [mRenderEncoder setFragmentTexture:texture atIndex:0];
 }
 
 static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
@@ -274,7 +298,7 @@ void gfx_metal_end_frame(void) {
     [mRenderEncoder endEncoding];
 
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    [mCommandBuffer presentDrawable: [layer nextDrawable]];
+    [mCommandBuffer presentDrawable: layer.nextDrawable];
     [mCommandBuffer commit];
 }
 
@@ -285,10 +309,10 @@ static void gfx_metal_finish_render(void) {
 int gfx_metal_create_framebuffer(void) {
     // Create Vertex Buffer
 
-//    mVertexBuffer = [mDevice newBufferWithLength:sizeof(Vertex) * 3
-//                                         options:MTLResourceOptionCPUCacheModeDefault];
-//    [mVertexBuffer setLabel:@"VBO"];
-//    memcpy(mVertexBuffer.contents, mVertexBufferData, sizeof(Vertex) * 3)
+    //    mVertexBuffer = [mDevice newBufferWithLength:sizeof(Vertex) * 3
+    //                                         options:MTLResourceOptionCPUCacheModeDefault];
+    //    [mVertexBuffer setLabel:@"VBO"];
+    //    memcpy(mVertexBuffer.contents, mVertexBufferData, sizeof(Vertex) * 3)
 
     
 }
