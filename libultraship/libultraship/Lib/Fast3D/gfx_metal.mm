@@ -1,4 +1,5 @@
 #include "gfx_metal.h"
+#include "PR/ultra64/abi.h"
 
 #ifdef ENABLE_METAL
 
@@ -23,6 +24,13 @@ static MTLRenderPassDescriptor* renderPassDescriptor;
 
 static id<MTLCommandBuffer> currentCommandBuffer;
 static id <MTLRenderCommandEncoder> currentRenderEncoder;
+static FilteringMode current_filter_mode = THREE_POINT;
+
+static struct {
+    NSMutableArray<id<MTLTexture>> *textures;
+    int current_tile;
+    uint32_t current_texture_ids[2];
+} metal_ctx;
 
 void Metal_SetRenderer(SDL_Renderer* renderer) {
     _renderer = renderer;
@@ -37,6 +45,8 @@ bool Metal_Init() {
 
     commandQueue = [layer.device newCommandQueue];
     renderPassDescriptor = [MTLRenderPassDescriptor new];
+
+    metal_ctx.textures = [[NSMutableArray alloc] init];
 
     return result;
 }
@@ -95,6 +105,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     gfx_cc_get_features(shader_id0, shader_id1, &cc_features);
     
     pipelineDescriptor = [MTLRenderPipelineDescriptor new];
+    [MTLRenderPipelineDescriptor new];
 
     if (cc_features.opt_alpha) {
         pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
@@ -112,7 +123,7 @@ static void gfx_metal_shader_get_info(struct ShaderProgram *prg, uint8_t *num_in
 }
 
 static uint32_t gfx_metal_new_texture(void) {
-    // TODO: implement
+    return [metal_ctx.textures count];
 }
 
 static void gfx_metal_delete_texture(uint32_t texID) {
@@ -120,7 +131,8 @@ static void gfx_metal_delete_texture(uint32_t texID) {
 }
 
 static void gfx_metal_select_texture(int tile, uint32_t texture_id) {
-    // TODO: implement
+    metal_ctx.current_tile = tile;
+    metal_ctx.current_texture_ids[tile] = texture_id;
 }
 
 static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, uint32_t height) {
@@ -236,7 +248,7 @@ void gfx_metal_set_texture_filter(FilteringMode mode) {
 }
 
 FilteringMode gfx_metal_get_texture_filter(void) {
-    // TODO: implement
+    return current_filter_mode;
 }
 
 struct GfxRenderingAPI gfx_metal_api = {
