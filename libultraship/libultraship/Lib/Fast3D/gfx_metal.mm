@@ -15,8 +15,6 @@
 #include "Lib/ImGui/backends/imgui_impl_metal.h"
 #include "gfx_cc.h"
 
-// ImGui & SDL Wrappers
-
 static SDL_Renderer* _renderer;
 static id<MTLCommandQueue> commandQueue;
 
@@ -24,7 +22,6 @@ static id<MTLRenderPipelineState> mPipelineState;
 static id<MTLCommandBuffer> mCommandBuffer;
 static id <MTLRenderCommandEncoder> mRenderEncoder;
 
-static MTLViewport mViewport = (MTLViewport){ 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 }
 static FilteringMode current_filter_mode = THREE_POINT;
 
 static struct {
@@ -32,6 +29,14 @@ static struct {
     int current_tile;
     uint32_t current_texture_ids[2];
 } metal_ctx;
+
+struct Vertex
+{
+    float position[3];
+    float color[3];
+};
+
+// MARK: - ImGui & SDL Wrappers
 
 void Metal_SetRenderer(SDL_Renderer* renderer) {
     _renderer = renderer;
@@ -65,7 +70,7 @@ void Metal_NewFrame() {
     }
 
     mCommandBuffer = [commandQueue commandBuffer];
-    mCommandBuffer.label = @"SoH Command";
+    mCommandBuffer.label = @"SoHCommand";
 
     id<CAMetalDrawable> drawable = layer.nextDrawable;
 
@@ -83,23 +88,11 @@ void Metal_NewFrame() {
     if(renderPassDescriptor != nil) {
         // Create a render command encoder so we can render into something
         mRenderEncoder = [mCommandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
-        mRenderEncoder.label = @"MyRenderEncoder";
+        mRenderEncoder.label = @"SoHRenderEncoder";
 
-        // Set the region of the drawable to which we'll draw.
-        [mRenderEncoder setViewport: mViewport];
-
-        [mRenderEncoder setRenderPipelineState: mPipelineState];
-
+        [mRenderEncoder setTriangleFillMode: MTLTriangleFillModeFill];
         [mRenderEncoder setCullMode:MTLCullModeNone];
-
-        [mRenderEncoder setVertexBuffer:mUniformBuffer offset:0 atIndex:1];
-
-        [mRenderEncoder setVertexBuffer:mVertexBuffer offset:0 atIndex:0];
-
-
-        [mRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:3 indexType:MTLIndexTypeUInt32 indexBuffer:mIndexBuffer indexBufferOffset:0];
-
-        [mRenderEncoder pushDebugGroup:@"SoH ImGui"];
+        [mRenderEncoder setFrontFacingWinding: MTLWindingClockwise];
     }
 
     ImGui_ImplMetal_NewFrame(renderPassDescriptor);
@@ -109,7 +102,7 @@ void Metal_RenderDrawData(ImDrawData* draw_data) {
     ImGui_ImplMetal_RenderDrawData(draw_data, mCommandBuffer, currentRenderEncoder);
 }
 
-// create metal renderer based on gfx_opengl.cpp
+// MARK: - Metal Graphics Rendering API
 
 static void gfx_metal_init(void) {
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
@@ -134,18 +127,26 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     gfx_cc_get_features(shader_id0, shader_id1, &cc_features);
     
     MTLRenderPipelineDescriptor* pipelineDescriptor = [MTLRenderPipelineDescriptor new];
-    [MTLRenderPipelineDescriptor new];
 
     if (cc_features.opt_alpha) {
         pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
         pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
         pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+        pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorZero;
+        pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOne
+        pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+        pipelineDescriptor.colorAttachments[0].writeMask = MTLColorWriteMaskAll;
+    } else {
+        pipelineDescriptor.colorAttachments[0].blendingEnabled = NO;
+        pipelineDescriptor.colorAttachments[0].writeMask = MTLColorWriteMaskAll;
     }
 
+    NSError* error = nil;
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
     mPipelineState = [layer.device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
-    if (!mPipelineState)
-    {
+
+    if (!mPipelineState) {
         // Pipeline State creation could fail if we haven't properly set up our pipeline descriptor.
         //  If the Metal API validation is enabled, we can find out more information about what
         //  went wrong.  (Metal API validation is enabled by default when a debug build is run
@@ -153,6 +154,8 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         NSLog(@"Failed to created pipeline state, error %@", error);
         return;
     }
+
+    [mRenderEncoder setRenderPipelineState: mPipelineState];
 }
 
 static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
@@ -184,47 +187,34 @@ static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint3
     // TODO: implement
 }
 
-static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool z_upd) {
-    // Use a depth-stencil state object created from a descriptor
-    // whose depthCompareFunction is not MTLCompareFunctionAlways.
-    if (depth_test || z_upd) {
-        // glEnable(GL_DEPTH_TEST);
-        // glDepthMask(z_upd ? GL_TRUE : GL_FALSE);
-        // glDepthFunc(depth_test ? GL_LEQUAL : GL_ALWAYS);
-        MTLDepthStencilDescriptor* depthDescriptor = [MTLDepthStencilDescriptor new];
-        [depthDescriptor setDepthWriteEnabled: YES];
-        [depthDescriptor setDepthCompareFunction: depth_test ? MTLCompareFunctionLess : MTLCompareFunctionAlways];
+static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) {
+    MTLDepthStencilDescriptor* depthDescriptor = [MTLDepthStencilDescriptor new];
+    [depthDescriptor setDepthWriteEnabled: depth_test || depth_mask ? YES : NO];
+    [depthDescriptor setDepthCompareFunction: depth_test ? MTLCompareFunctionLess : MTLCompareFunctionAlways];
 
-        CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-        id<MTLDepthStencilState> depthStencilState = [layer.device newDepthStencilStateWithDescriptor: depthDescriptor];
-        [currentRenderEncoder setDepthStencilState:depthStencilState];
-    } else {
-        [currentRenderEncoder setDepthStencilState:nil];
-    }
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    id<MTLDepthStencilState> depthStencilState = [layer.device newDepthStencilStateWithDescriptor: depthDescriptor];
+    [currentRenderEncoder setDepthStencilState:depthStencilState];
 }
 
 static void gfx_metal_set_zmode_decal(bool zmode_decal) {
     if (zmode_decal) {
         // glPolygonOffset(-2, -2);
         // glEnable(GL_POLYGON_OFFSET_FILL);
-        [currentRenderEncoder setDepthBias:-2 slopeScale:-2 clamp:0];
+        [mRenderEncoder setDepthBias:0 slopeScale:-2 clamp:0];
     } else {
         // glPolygonOffset(0, 0);
         // glDisable(GL_POLYGON_OFFSET_FILL);
-        [currentRenderEncoder setDepthBias:0 slopeScale:0 clamp:0];
+        [mRenderEncoder setDepthBias:0 slopeScale:0 clamp:0];
     }
 }
 
 static void gfx_metal_set_viewport(int x, int y, int width, int height) {
-    //[mRenderEncoder setViewport:(MTLViewport){x, y, width, height, 0.0, 1.0 }];
-    mViewport.originX = x
-    mViewport.originY = y
-    mViewport.width = width
-    mViewport.height = height
+    [mRenderEncoder setViewport:(MTLViewport){x, y, width, height, 0.0, 1.0 }];
 }
 
 static void gfx_metal_set_scissor(int x, int y, int width, int height) {
-    [currentRenderEncoder setScissorRect:(MTLScissorRect){ x, y, width, height }];
+    [mRenderEncoder setScissorRect:(MTLScissorRect){ x, y, width, height }];
 }
 
 static void gfx_metal_set_use_alpha(bool use_alpha) {
@@ -233,6 +223,19 @@ static void gfx_metal_set_use_alpha(bool use_alpha) {
 
 static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
     // TODO: implement
+    [mRenderEncoder setVertexBuffer:mUniformBuffer offset:0 atIndex:1];
+    [mRenderEncoder setVertexBuffer:mVertexBuffer offset:0 atIndex:0];
+
+
+    // Create Index Buffer
+
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    id <MTLBuffer> indexBuffer = [layer.device newBufferWithLength:sizeof(float) * buf_vbo_len
+                                        options:MTLResourceOptionCPUCacheModeDefault];
+    [indexBuffer setLabel:@"IBO"];
+    memcpy(indexBuffer.contents, buf_vbo, sizeof(float) * buf_vbo_len);
+
+    [mRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:3 * buf_vbo_num_tris indexType:MTLIndexTypeUInt32 indexBuffer:indexBuffer indexBufferOffset:0];
 }
 
 static void gfx_metal_on_resize(void) {
@@ -244,8 +247,7 @@ static void gfx_metal_start_frame(void) {
 }
 
 void gfx_metal_end_frame(void) {
-    [currentRenderEncoder popDebugGroup];
-    [currentRenderEncoder endEncoding];
+    [mRenderEncoder endEncoding];
 
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
     [mCommandBuffer presentDrawable: [layer nextDrawable]];
@@ -257,7 +259,14 @@ static void gfx_metal_finish_render(void) {
 }
 
 int gfx_metal_create_framebuffer(void) {
-    // TODO: implement
+    // Create Vertex Buffer
+
+//    mVertexBuffer = [mDevice newBufferWithLength:sizeof(Vertex) * 3
+//                                         options:MTLResourceOptionCPUCacheModeDefault];
+//    [mVertexBuffer setLabel:@"VBO"];
+//    memcpy(mVertexBuffer.contents, mVertexBufferData, sizeof(Vertex) * 3)
+
+    
 }
 
 static void gfx_metal_update_framebuffer_parameters(int fb_id, uint32_t width, uint32_t height, uint32_t msaa_level, bool opengl_invert_y, bool render_target, bool has_depth_buffer, bool can_extract_depth) {
