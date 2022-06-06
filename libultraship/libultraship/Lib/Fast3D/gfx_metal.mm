@@ -1,5 +1,4 @@
 #include "gfx_metal.h"
-#include "PR/ultra64/abi.h"
 
 #ifdef ENABLE_METAL
 
@@ -7,6 +6,7 @@
 #define _LANGUAGE_C
 #endif
 #include "PR/ultra64/gbi.h"
+#include "PR/ultra64/abi.h"
 
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
@@ -183,8 +183,34 @@ static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, 
     // TODO: implement
 }
 
+static MTLSamplerAddressMode gfx_cm_to_opengl(uint32_t val) {
+    switch (val) {
+        case G_TX_NOMIRROR | G_TX_CLAMP:
+            return MTLSamplerAddressModeClampToEdge;
+        case G_TX_MIRROR | G_TX_WRAP:
+            return MTLSamplerAddressModeMirrorRepeat;
+        case G_TX_MIRROR | G_TX_CLAMP:
+            return MTLSamplerAddressModeMirrorClampToEdge;
+        case G_TX_NOMIRROR | G_TX_WRAP:
+            return MTLSamplerAddressModeRepeat;
+    }
+
+    return MTLSamplerAddressModeClampToEdge;
+}
+
 static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint32_t cms, uint32_t cmt) {
-    // TODO: implement
+    MTLSamplerDescriptor *samplerDescriptor = [MTLSamplerDescriptor new];
+    MTLSamplerMinMagFilter filter = linear_filter && current_filter_mode == LINEAR ? MTLSamplerMinMagFilterLinear : MTLSamplerMinMagFilterNearest;
+    samplerDescriptor.minFilter = filter;
+    samplerDescriptor.magFilter = filter;
+    samplerDescriptor.sAddressMode = gfx_cm_to_metal(cms);
+    samplerDescriptor.tAddressMode = gfx_cm_to_metal(cmt);
+
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    id<MTLSamplerState> sampler = [layer.device newSamplerStateWithDescriptor:samplerDescriptor];
+
+    // TODO: choose the correct texture data index to pass this to.
+    [mRenderEncoder setFragmentSamplerState:sampler atIndex:0];
 }
 
 static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) {
