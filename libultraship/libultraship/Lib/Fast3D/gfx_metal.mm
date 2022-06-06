@@ -29,7 +29,7 @@ struct ShaderProgramMetal {
     bool used_textures[2];
 };
 
-static map<pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
+static std::map<std::pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
 static FilteringMode current_filter_mode = THREE_POINT;
 
 static struct {
@@ -72,12 +72,6 @@ void Metal_NewFrame() {
     SDL_GetRendererOutputSize(_renderer, &width, &height);
     layer.drawableSize = CGSizeMake(width, height);
 
-    MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor new];
-
-    if (mCommandBuffer != nil) {
-        [mCommandBuffer release];
-    }
-
     mCommandBuffer = [commandQueue commandBuffer];
     mCommandBuffer.label = @"SoHCommand";
 
@@ -108,7 +102,7 @@ void Metal_NewFrame() {
 }
 
 void Metal_RenderDrawData(ImDrawData* draw_data) {
-    ImGui_ImplMetal_RenderDrawData(draw_data, mCommandBuffer, currentRenderEncoder);
+    ImGui_ImplMetal_RenderDrawData(draw_data, mCommandBuffer, mRenderEncoder);
 }
 
 // MARK: - Metal Graphics Rendering API
@@ -142,7 +136,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
         pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
         pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorZero;
-        pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOne
+        pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOne;
         pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
         pipelineDescriptor.colorAttachments[0].writeMask = MTLColorWriteMaskAll;
     } else {
@@ -150,7 +144,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         pipelineDescriptor.colorAttachments[0].writeMask = MTLColorWriteMaskAll;
     }
 
-    struct ShaderProgramMetal *prg = &shader_program_pool[make_pair(shader_id0, shader_id1)];
+    struct ShaderProgramMetal *prg = &shader_program_pool[std::make_pair(shader_id0, shader_id1)];
 
     NSError* error = nil;
     mPipelineState = [mDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
@@ -161,10 +155,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         //  went wrong.  (Metal API validation is enabled by default when a debug build is run
         //  from Xcode)
         NSLog(@"Failed to created pipeline state, error %@", error);
-        return;
     }
-
-    [mRenderEncoder setRenderPipelineState: mPipelineState];
 }
 
 static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
@@ -196,8 +187,6 @@ static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, 
 //    textureDescriptor.cpuCacheMode = MTLCPUCacheModeDefaultCache;
 
     id<MTLTexture> texture = [mDevice newTextureWithDescriptor:textureDescriptor];
-    texture.width = width;
-    texture.height = height;
     [metal_ctx.textures addObject:texture];
 
     MTLRegion region = MTLRegionMake2D(0, 0, width, height);
@@ -243,7 +232,7 @@ static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) 
     [depthDescriptor setDepthCompareFunction: depth_test ? MTLCompareFunctionLess : MTLCompareFunctionAlways];
 
     id<MTLDepthStencilState> depthStencilState = [mDevice newDepthStencilStateWithDescriptor: depthDescriptor];
-    [currentRenderEncoder setDepthStencilState:depthStencilState];
+    [mRenderEncoder setDepthStencilState:depthStencilState];
 }
 
 static void gfx_metal_set_zmode_decal(bool zmode_decal) {
@@ -272,8 +261,8 @@ static void gfx_metal_set_use_alpha(bool use_alpha) {
 
 static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
     // TODO: implement
-    [mRenderEncoder setVertexBuffer:mUniformBuffer offset:0 atIndex:1];
-    [mRenderEncoder setVertexBuffer:mVertexBuffer offset:0 atIndex:0];
+    // [mRenderEncoder setVertexBuffer:mUniformBuffer offset:0 atIndex:1];
+    // [mRenderEncoder setVertexBuffer:mVertexBuffer offset:0 atIndex:0];
 
 
     // Create Index Buffer
