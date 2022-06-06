@@ -7,12 +7,8 @@
 #endif
 #include "PR/ultra64/gbi.h"
 
-#define NS_PRIVATE_IMPLEMENTATION
-#define CA_PRIVATE_IMPLEMENTATION
-#define MTL_PRIVATE_IMPLEMENTATION
-#include <Foundation/Foundation.hpp>
-#include <Metal/Metal.hpp>
-#include <QuartzCore/QuartzCore.hpp>
+#import <Metal/Metal.h>
+#import <QuartzCore/QuartzCore.h>
 
 #include "Lib/SDL/SDL2/SDL_render.h"
 #include "Lib/ImGui/backends/imgui_impl_metal.h"
@@ -21,63 +17,64 @@
 // ImGui & SDL Wrappers
 
 static SDL_Renderer* _renderer;
-static MTL::CommandQueue* command_queue;
-static MTL::RenderPipelineDescriptor* pipeline_descriptor;
-static MTL::RenderPassDescriptor* render_pass_descriptor;
+static id<MTLCommandQueue> commandQueue;
+static MTLRenderPipelineDescriptor* pipelineDescriptor;
+static MTLRenderPassDescriptor* renderPassDescriptor;
 
-static MTL::CommandBuffer* current_command_buffer;
-static MTL::RenderCommandEncoder* current_render_encoder;
+static id<MTLCommandBuffer> currentCommandBuffer;
+static id <MTLRenderCommandEncoder> currentRenderEncoder;
 
 void Metal_SetRenderer(SDL_Renderer* renderer) {
     _renderer = renderer;
 }
 
 bool Metal_Init() {
-    auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    MTL::Device* device = layer->device();
-    bool result = ImGui_ImplMetal_Init(device);
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+
+    bool result = ImGui_ImplMetal_Init(layer.device);
     if (!result) return result;
 
-    command_queue = device->newCommandQueue();
-    render_pass_descriptor = MTL::RenderPassDescriptor::alloc()->init();
+    commandQueue = [layer.device newCommandQueue];
+    renderPassDescriptor = [MTLRenderPassDescriptor new];
 
     return result;
 }
 
 void Metal_NewFrame() {
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+
     int width, height;
     SDL_GetRendererOutputSize(_renderer, &width, &height);
+    layer.drawableSize = CGSizeMake(width, height);
 
-    auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    layer->setWidth(width);
-    layer->setHeight(height);
+    id<CAMetalDrawable> drawable = [layer nextDrawable];
 
-    CA::MetalDrawable* drawable = layer->nextDrawable();
+    currentCommandBuffer = [commandQueue commandBuffer];
+    float clear_color[4] = {0.45f, 0.55f, 0.60f, 1.00f};
+    renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clear_color[0] * clear_color[3], clear_color[1] * clear_color[3], clear_color[2] * clear_color[3], clear_color[3]);
+    renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
+    renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
+    renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+    currentRenderEncoder = [currentCommandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+    [currentRenderEncoder pushDebugGroup:@"SoH ImGui"];
 
-    current_command_buffer = command_queue->commandBuffer();
-    render_pass_descriptor->colorAttachments()->object(0)->setClearColor(MTL::ClearColor(0.45, 0.55, 0.60, 1.00));
-    render_pass_descriptor->colorAttachments()->object(0)->setTexture(drawable->texture());
-    render_pass_descriptor->colorAttachments()->object(0)->setLoadAction(MTL::LoadActionClear);
-    //render_pass_descriptor->colorAttachments()->object(0)->setStoreAction(MTL::StoreActionStore);
+    NSError *error;
+    id<MTLRenderPipelineState> pipelineState = [layer.device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
+    [currentRenderEncoder setRenderPipelineState:pipelineState];
 
-    current_render_encoder = current_command_buffer->renderCommandEncoder(render_pass_descriptor);
-    current_render_encoder->pushDebugGroup(NS::String::alloc()->init("SoH ImGui", NS::UTF8StringEncoding));
-
-    MTL::RenderPipelineState* pipeline_state = layer->device()->newRenderPipelineState(pipeline_descriptor);
-    current_render_encoder->setRenderPipelineState(pipeline_state);
-
-    ImGui_ImplMetal_NewFrame(render_pass_descriptor);
+    ImGui_ImplMetal_NewFrame(renderPassDescriptor);
 }
 
 void Metal_RenderDrawData(ImDrawData* draw_data) {
-    ImGui_ImplMetal_RenderDrawData(draw_data, current_command_buffer, current_render_encoder);
+    ImGui_ImplMetal_RenderDrawData(draw_data, currentCommandBuffer, currentRenderEncoder);
 }
 
 // create metal renderer based on gfx_opengl.cpp
 
 static void gfx_metal_init(void) {
-    auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    layer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
 }
 
 static struct GfxClipParameters gfx_metal_get_clip_parameters() {
@@ -96,13 +93,13 @@ static void gfx_metal_load_shader(struct ShaderProgram *new_prg) {
 static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shader_id0, uint32_t shader_id1) {
     CCFeatures cc_features;
     gfx_cc_get_features(shader_id0, shader_id1, &cc_features);
-
-    pipeline_descriptor = MTL::RenderPipelineDescriptor::alloc()->init();
+    
+    pipelineDescriptor = [MTLRenderPipelineDescriptor new];
 
     if (cc_features.opt_alpha) {
-        pipeline_descriptor->colorAttachments()->object(0)->setBlendingEnabled(true);
-        pipeline_descriptor->colorAttachments()->object(0)->setSourceRGBBlendFactor(MTL::BlendFactorSourceAlpha);
-        pipeline_descriptor->colorAttachments()->object(0)->setDestinationRGBBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
+        pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
+        pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+        pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
     }
 }
 
@@ -141,15 +138,15 @@ static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool z_upd) {
         // glEnable(GL_DEPTH_TEST);
         // glDepthMask(z_upd ? GL_TRUE : GL_FALSE);
         // glDepthFunc(depth_test ? GL_LEQUAL : GL_ALWAYS);
-        MTL::DepthStencilDescriptor* depth_descriptor = MTL::DepthStencilDescriptor::alloc()->init();
-        depth_descriptor->setDepthWriteEnabled(true);
-        depth_descriptor->setDepthCompareFunction(depth_test ? MTL::CompareFunctionLess : MTL::CompareFunctionAlways);
+        MTLDepthStencilDescriptor* depthDescriptor = [MTLDepthStencilDescriptor new];
+        [depthDescriptor setDepthWriteEnabled: YES];
+        [depthDescriptor setDepthCompareFunction: depth_test ? MTLCompareFunctionLess : MTLCompareFunctionAlways];
 
-        auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-        MTL::DepthStencilState* depth_stencil_state = layer->device()->newDepthStencilState(depth_descriptor);
-        current_render_encoder->setDepthStencilState(depth_stencil_state);
+        CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+        id<MTLDepthStencilState> depthStencilState = [layer.device newDepthStencilStateWithDescriptor: depthDescriptor];
+        [currentRenderEncoder setDepthStencilState:depthStencilState];
     } else {
-        current_render_encoder->setDepthStencilState(NULL);
+        [currentRenderEncoder setDepthStencilState:nil];
     }
 }
 
@@ -157,20 +154,20 @@ static void gfx_metal_set_zmode_decal(bool zmode_decal) {
     if (zmode_decal) {
         // glPolygonOffset(-2, -2);
         // glEnable(GL_POLYGON_OFFSET_FILL);
-        current_render_encoder->setDepthBias(-2, -2, 0.0);
+        [currentRenderEncoder setDepthBias:-2 slopeScale:-2 clamp:0];
     } else {
         // glPolygonOffset(0, 0);
         // glDisable(GL_POLYGON_OFFSET_FILL);
-        current_render_encoder->setDepthBias(0.0, 0.0, 0.0);
+        [currentRenderEncoder setDepthBias:0 slopeScale:0 clamp:0];
     }
 }
 
 static void gfx_metal_set_viewport(int x, int y, int width, int height) {
-    current_render_encoder->setViewport({ x, y, width, height, 0, 1 });
+    [currentRenderEncoder setViewport:(MTLViewport){x, y, width, height, 0.0, 1.0 }];
 }
 
 static void gfx_metal_set_scissor(int x, int y, int width, int height) {
-    current_render_encoder->setScissorRect({ x, y, width, height });
+    [currentRenderEncoder setScissorRect:(MTLScissorRect){ x, y, width, height }];
 }
 
 static void gfx_metal_set_use_alpha(bool use_alpha) {
@@ -190,12 +187,12 @@ static void gfx_metal_start_frame(void) {
 }
 
 void gfx_metal_end_frame(void) {
-    current_render_encoder->popDebugGroup();
-    current_render_encoder->endEncoding();
+    [currentRenderEncoder popDebugGroup];
+    [currentRenderEncoder endEncoding];
 
-    auto layer = (CA::MetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    current_command_buffer->presentDrawable(layer->nextDrawable());
-    current_command_buffer->commit();
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    [currentCommandBuffer presentDrawable: [layer nextDrawable]];
+    [currentCommandBuffer commit];
 }
 
 static void gfx_metal_finish_render(void) {
