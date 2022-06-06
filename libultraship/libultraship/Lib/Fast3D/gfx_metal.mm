@@ -19,11 +19,12 @@
 
 static SDL_Renderer* _renderer;
 static id<MTLCommandQueue> commandQueue;
-static MTLRenderPipelineDescriptor* pipelineDescriptor;
-static MTLRenderPassDescriptor* renderPassDescriptor;
 
-static id<MTLCommandBuffer> currentCommandBuffer;
-static id <MTLRenderCommandEncoder> currentRenderEncoder;
+static id<MTLRenderPipelineState> mPipelineState;
+static id<MTLCommandBuffer> mCommandBuffer;
+static id <MTLRenderCommandEncoder> mRenderEncoder;
+
+static MTLViewport mViewport = (MTLViewport){ 0.0, 0.0, 0.0, 0.0, 0.0, 1.0 }
 static FilteringMode current_filter_mode = THREE_POINT;
 
 static struct {
@@ -44,7 +45,6 @@ bool Metal_Init() {
     if (!result) return result;
 
     commandQueue = [layer.device newCommandQueue];
-    renderPassDescriptor = [MTLRenderPassDescriptor new];
 
     metal_ctx.textures = [[NSMutableArray alloc] init];
 
@@ -58,26 +58,55 @@ void Metal_NewFrame() {
     SDL_GetRendererOutputSize(_renderer, &width, &height);
     layer.drawableSize = CGSizeMake(width, height);
 
-    id<CAMetalDrawable> drawable = [layer nextDrawable];
+    MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor new];
 
-    currentCommandBuffer = [commandQueue commandBuffer];
-    float clear_color[4] = {0.45f, 0.55f, 0.60f, 1.00f};
-    renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(clear_color[0] * clear_color[3], clear_color[1] * clear_color[3], clear_color[2] * clear_color[3], clear_color[3]);
+    if (mCommandBuffer != nil) {
+        [mCommandBuffer release];
+    }
+
+    mCommandBuffer = [commandQueue commandBuffer];
+    mCommandBuffer.label = @"SoH Command";
+
+    id<CAMetalDrawable> drawable = layer.nextDrawable;
+
+    MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
     renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
     renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-    renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
-    currentRenderEncoder = [currentCommandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
-    [currentRenderEncoder pushDebugGroup:@"SoH ImGui"];
 
-    NSError *error;
-    id<MTLRenderPipelineState> pipelineState = [layer.device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
-    [currentRenderEncoder setRenderPipelineState:pipelineState];
+    MTLClearColor clearCol;
+    clearCol.red = 0.2;
+    clearCol.green = 0.2;
+    clearCol.blue = 0.2;
+    clearCol.alpha = 1.0;
+    renderPassDescriptor.colorAttachments[0].clearColor = clearCol;
+
+    if(renderPassDescriptor != nil) {
+        // Create a render command encoder so we can render into something
+        mRenderEncoder = [mCommandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+        mRenderEncoder.label = @"MyRenderEncoder";
+
+        // Set the region of the drawable to which we'll draw.
+        [mRenderEncoder setViewport: mViewport];
+
+        [mRenderEncoder setRenderPipelineState: mPipelineState];
+
+        [mRenderEncoder setCullMode:MTLCullModeNone];
+
+        [mRenderEncoder setVertexBuffer:mUniformBuffer offset:0 atIndex:1];
+
+        [mRenderEncoder setVertexBuffer:mVertexBuffer offset:0 atIndex:0];
+
+
+        [mRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:3 indexType:MTLIndexTypeUInt32 indexBuffer:mIndexBuffer indexBufferOffset:0];
+
+        [mRenderEncoder pushDebugGroup:@"SoH ImGui"];
+    }
 
     ImGui_ImplMetal_NewFrame(renderPassDescriptor);
 }
 
 void Metal_RenderDrawData(ImDrawData* draw_data) {
-    ImGui_ImplMetal_RenderDrawData(draw_data, currentCommandBuffer, currentRenderEncoder);
+    ImGui_ImplMetal_RenderDrawData(draw_data, mCommandBuffer, currentRenderEncoder);
 }
 
 // create metal renderer based on gfx_opengl.cpp
@@ -104,13 +133,25 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     CCFeatures cc_features;
     gfx_cc_get_features(shader_id0, shader_id1, &cc_features);
     
-    pipelineDescriptor = [MTLRenderPipelineDescriptor new];
+    MTLRenderPipelineDescriptor* pipelineDescriptor = [MTLRenderPipelineDescriptor new];
     [MTLRenderPipelineDescriptor new];
 
     if (cc_features.opt_alpha) {
         pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
         pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
         pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    }
+
+    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    mPipelineState = [layer.device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
+    if (!mPipelineState)
+    {
+        // Pipeline State creation could fail if we haven't properly set up our pipeline descriptor.
+        //  If the Metal API validation is enabled, we can find out more information about what
+        //  went wrong.  (Metal API validation is enabled by default when a debug build is run
+        //  from Xcode)
+        NSLog(@"Failed to created pipeline state, error %@", error);
+        return;
     }
 }
 
@@ -175,7 +216,11 @@ static void gfx_metal_set_zmode_decal(bool zmode_decal) {
 }
 
 static void gfx_metal_set_viewport(int x, int y, int width, int height) {
-    [currentRenderEncoder setViewport:(MTLViewport){x, y, width, height, 0.0, 1.0 }];
+    //[mRenderEncoder setViewport:(MTLViewport){x, y, width, height, 0.0, 1.0 }];
+    mViewport.originX = x
+    mViewport.originY = y
+    mViewport.width = width
+    mViewport.height = height
 }
 
 static void gfx_metal_set_scissor(int x, int y, int width, int height) {
@@ -203,8 +248,8 @@ void gfx_metal_end_frame(void) {
     [currentRenderEncoder endEncoding];
 
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    [currentCommandBuffer presentDrawable: [layer nextDrawable]];
-    [currentCommandBuffer commit];
+    [mCommandBuffer presentDrawable: [layer nextDrawable]];
+    [mCommandBuffer commit];
 }
 
 static void gfx_metal_finish_render(void) {
