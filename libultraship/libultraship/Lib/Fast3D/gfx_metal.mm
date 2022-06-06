@@ -184,7 +184,7 @@ static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, 
     // TODO: implement
 }
 
-static MTLSamplerAddressMode gfx_cm_to_opengl(uint32_t val) {
+static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     switch (val) {
         case G_TX_NOMIRROR | G_TX_CLAMP:
             return MTLSamplerAddressModeClampToEdge;
