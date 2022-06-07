@@ -12,4 +12,18 @@ bool Metal_Init();
 void Metal_NewFrame();
 void Metal_RenderDrawData(ImDrawData* draw_data);
 
+#include <simd/simd.h>
+
+struct FrameUniforms {
+    int frameCount;
+    float noiseScale;
+};
+
+struct DrawUniforms {
+    uint16_t width;
+    uint16_t height;
+    bool linearFiltering;
+};
+
+
 #endif

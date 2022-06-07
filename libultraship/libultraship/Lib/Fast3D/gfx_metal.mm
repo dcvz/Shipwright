@@ -19,9 +19,12 @@ static SDL_Renderer* _renderer;
 static id<MTLDevice> mDevice;
 static id<MTLCommandQueue> commandQueue;
 
+static id<MTLSamplerState> sampler;
 static id<MTLRenderPipelineState> mPipelineState;
 static id<MTLCommandBuffer> mCommandBuffer;
 static id <MTLRenderCommandEncoder> mRenderEncoder;
+
+static id<MTLBuffer> uniformBuffer;
 
 struct ShaderProgramMetal {
     uint8_t num_inputs;
@@ -37,13 +40,16 @@ static struct {
     NSMutableArray<id<MTLTexture>> *textures;
     int current_tile;
     uint32_t current_texture_ids[2];
+
+    FrameUniforms frame_uniforms;
 } metal_ctx;
 
-struct Vertex
-{
-    float position[3];
-    float color[3];
-};
+// MARK: - Helpers
+
+static void append_line(char *buf, size_t *len, const char *str) {
+    while (*str != '\0') buf[(*len)++] = *str++;
+    buf[(*len)++] = '\n';
+}
 
 // MARK: - ImGui & SDL Wrappers
 
@@ -76,18 +82,16 @@ void Metal_NewFrame() {
     mCommandBuffer = [commandQueue commandBuffer];
     mCommandBuffer.label = @"SoHCommand";
 
-    id<CAMetalDrawable> drawable = layer.nextDrawable;
-
     MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
+
+    id<CAMetalDrawable> drawable = [layer nextDrawable];
+    NSAssert(drawable != nil, @"Could not retrieve drawable from Metal layer");
+
+    MTLClearColor clearColor = MTLClearColorMake(0.2, 0.2, 0.2, 1.0);
     renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
     renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-
-    MTLClearColor clearCol;
-    clearCol.red = 0.2;
-    clearCol.green = 0.2;
-    clearCol.blue = 0.2;
-    clearCol.alpha = 1.0;
-    renderPassDescriptor.colorAttachments[0].clearColor = clearCol;
+    renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore
+    renderPassDescriptor.colorAttachments[0].clearColor = clearColor;
 
     if(renderPassDescriptor != nil) {
         // Create a render command encoder so we can render into something
@@ -123,11 +127,6 @@ static void gfx_metal_load_shader(struct ShaderProgram *new_prg) {
     metal_ctx.shader_program = (struct ShaderProgramMetal *)new_prg;
 }
 
-static void append_line(char *buf, size_t *len, const char *str) {
-    while (*str != '\0') buf[(*len)++] = *str++;
-    buf[(*len)++] = '\n';
-}
-
 static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shader_id0, uint32_t shader_id1) {
     CCFeatures cc_features;
     gfx_cc_get_features(shader_id0, shader_id1, &cc_features);
@@ -135,43 +134,99 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     char buf[4096];
     size_t len = 0;
     size_t num_floats = 4;
+    int vertexIndex = 0;
 
-    // Shader input struct
+    MTLVertexDescriptor *vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
+
     append_line(buf, &len, "#include <metal_stdlib>");
     append_line(buf, &len, "using namespace metal;");
 
-    append_line(buf, &len, "struct ShaderInput {");
-    append_line(buf, &len, "    float4 position;");
+    // Uniforms struct
+    append_line(buf, &len, "struct FrameUniforms {");
+    append_line(buf, &len, "    uint noise_frame;");
+    append_line(buf, &len, "    float noise_scale;");
+    append_line(buf, &len, "};");
+    // end uniforms struct
+
+    // Vertex struct
+    append_line(buf, &len, "struct Vertex {");
+    len += sprintf(buf + len, "    float4 position [[attribute(%d)]];\n", vertexIndex);
+    vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat4;
+    vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
+    vertexDescriptor.attributes[vertexIndex++].offset = 0;
+
     for (int i = 0; i < 2; i++) {
         if (cc_features.used_textures[i]) {
-            len += sprintf(buf + len, "    float2 texCoord%d;\n", i);
+            len += sprintf(buf + len, "    float2 texCoord%d [[attribute(%d)]];\n", i, vertexIndex);
+            vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat2;
+            vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
+            vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
             num_floats += 2;
             for (int j = 0; j < 2; j++) {
                 if (cc_features.clamp[i][j]) {
-                    len += sprintf(buf + len, "    float texClamp%s%d;\n", j == 0 ? "S" : "T", i, j == 0 ? "S" : "T", i);
+                    len += sprintf(buf + len, "    float texClamp%s%d [[attribute(%d)]];\n", j == 0 ? "S" : "T", i, j == 0 ? "S" : "T", i, vertexIndex);
+                    vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat;
+                    vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
+                    vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
                     num_floats += 1;
                 }
             }
         }
     }
     if (cc_features.opt_fog) {
-        append_line(buf, &len, "    float4 fog;")
+        len += sprintf(buf + len, "    float4 fog [[attribute(%d)]];", vertexIndex)
+        vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat4;
+        vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
+        vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
         num_floats += 4;
     }
     if (cc_features.opt_grayscale) {
-        append_line(buf, &len, "    float4 grayscale;")
+        len += sprintf(buf + len, "    float4 grayscale [[attribute(%d)]];", vertexIndex)
+        vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat4;
+        vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
+        vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
         num_floats += 4;
     }
     for (int i = 0; i < cc_features.num_inputs; i++) {
-        append_line(buf, &len, "    float%d input%d;", cc_features.opt_alpha ? 4 : 3, i + 1)
+        len += sprintf(buf + len, "    float%d input%d [[attribute(%d)]];",  cc_features.opt_alpha ? 4 : 3, i + 1, vertexIndex)
+        vertexDescriptor.attributes[vertexIndex].format = cc_features.opt_alpha ? MTLVertexFormatFloat4 : MTLVertexFormatFloat3;
+        vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
+        vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
         num_floats += cc_features.opt_alpha ? 4 : 3;
     }
     append_line(buf, &len, "};");
-    // end shader input struct
+    // end vertex struct
+
+    // fragment output struct
+    append_line(buf, &len, "struct ProjectedVertex {");
+    append_line(buf, &len, "    float4 position [[position]];");
+
+    for (int i = 0; i < 2; i++) {
+        if (cc_features.used_textures[i]) {
+            len += sprintf(buf + len, "    float2 texCoord%d;\n", i);
+            for (int j = 0; j < 2; j++) {
+                if (cc_features.clamp[i][j]) {
+                    len += sprintf(buf + len, "    float texClamp%s%d;\n", j == 0 ? "S" : "T", i, j == 0 ? "S" : "T", i);
+                }
+            }
+        }
+    }
+
+    if (cc_features.opt_fog) {
+        append_line(buf, &len, "    float4 fog;");
+    }
+    if (cc_features.opt_grayscale) {
+        append_line(buf, &len, "    float4 grayscale;");
+    }
+    for (int i = 0; i < cc_features.num_inputs; i++) {
+        len += sprintf(buf + len, "    float%d input%d;",  cc_features.opt_alpha ? 4 : 3, i + 1)
+    }
+    append_line(buf, &len, "};");
+    // end fragment output struct
 
     // vertex shader
-    append_line(buf, &len, "vertex ShaderInput vertexShader(ShaderInput in [[stage_in]]) {");
-    append_line(buf, &len, "    ShaderInput out;");
+    append_line(buf, &len, "vertex ProjectedVertex vertexShader(Vertex in [[stage_in]]) {");
+    append_line(buf, &len, "    ProjectedVertex out;");
     for (int i = 0; i < 2; i++) {
         if (cc_features.used_textures[i]) {
             len += sprintf(buf + len, "    out.texCoord%d = in.texCoord%d;\n", i, i);
@@ -199,6 +254,46 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     append_line(buf, &len, "}");
     // end vertex shader
 
+    // fragment shader
+    append_line(buf, &len, "float4 fragmentShader(ShaderInput in [[stage_in]], constant FrameUniforms &frameUniforms [[buffer(0)]], constant DrawUniforms &texture0Uniforms [[buffer(1)]], constant DrawUniforms &texture1Uniforms [[buffer(2)]], texture2d<float> texture0 [[texture(0)]], texture2d<float> texture1 [[texture(1)]], sampler sampler0 [[sampler(0)]], sampler sampler1 [[sampler(1)]]) {");
+
+    for (int i = 0; i < 2; i++) {
+        if (cc_features.used_textures[i]) {
+            len += sprintf(buf + len, "    float2 texCoord%d = input.texCoord%d;\n", i, i);
+            bool s = cc_features.clamp[i][0], t = cc_features.clamp[i][1];
+            if (!s && !t) {}
+            else {
+                len += sprintf(buf + len, "    const auto texSize%d = ushort2(texture%d.get_width(), texture%d.get_height());\n", i, i, i);
+                if (s && t) {
+                    len += sprintf(buf + len, "    texCoord%d = clamp(texCoord%d, 0.5 / texSize%d, float2(input.texClampS%d, input.texClampT%d));\n", i, i, i, i, i);
+                } else if (s) {
+                    len += sprintf(buf + len, "    float2(clamp(texCoord%d.x, 0.5 / texSize%d.x, input.texClampS%d), texCoord%d.y);\n", i, i, i, i, i);
+                } else {
+                    len += sprintf(buf + len, "    texCoord%d = float2(texCoord%d.x, clamp(texCoord%d.y, 0.5 / texSize%d.y, input.texClampT%d));\n", i, i, i, i, i);
+                }
+            }
+            if (metal_ctx.current_filter_mode == THREE_POINT) {
+
+            } else {
+                len += sprintf(buf + len, "    float4 texVal%d = texture%d.sample(sampler%d, texCoord%d);\n", i, i, i, i);
+            }
+        }
+    }
+
+    if (cc_features.opt_alpha) {
+        if (cc_features.opt_alpha_threshold) {
+            append_line(buf, &len, "    if (texel.a < 8.0 / 256.0) discard_fragment();");
+        }
+        if (cc_features.opt_invisible) {
+            append_line(buf, &len, "    texel.a = 0.0;");
+        }
+        append_line(buf, &len, "    return texel;");
+    } else {
+        append_line(buf, &len, "    return float4(texel, 1.0);");
+    }
+    append_line(buf, &len, "}");
+    // end fragment shader
+
     
     MTLRenderPipelineDescriptor* pipelineDescriptor = [MTLRenderPipelineDescriptor new];
 
@@ -216,16 +311,16 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         pipelineDescriptor.colorAttachments[0].writeMask = MTLColorWriteMaskAll;
     }
 
-    struct ShaderProgramMetal *prg = &shader_program_pool[std::make_pair(shader_id0, shader_id1)];
-    prg->used_textures[0] = cc_features.used_textures[0];
-    prg->used_textures[1] = cc_features.used_textures[1];
-    prg->num_floats = num_floats;
+    vertexDescriptor.layouts[0].stride = num_floats * sizeof(float);
+    vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
 
-    // not sure about the vertex descriptor yet..
-    MTLVertexDescriptor *vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
-    vertexDescriptor.layouts[0].stride = prg->num_floats;
-
+    //pipelineDescriptor.vertexFunction = material.vertexFunction;
+    //pipelineDescriptor.fragmentFunction = material.fragmentFunction;
     pipelineDescriptor.vertexDescriptor = vertexDescriptor;
+
+    pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+
+    pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
 
     NSError* error = nil;
     mPipelineState = [mDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
@@ -238,6 +333,10 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         NSLog(@"Failed to created pipeline state, error %@", error);
     }
 
+    struct ShaderProgramMetal *prg = &shader_program_pool[std::make_pair(shader_id0, shader_id1)];
+    prg->used_textures[0] = cc_features.used_textures[0];
+    prg->used_textures[1] = cc_features.used_textures[1];
+    prg->num_floats = num_floats;
     return (struct ShaderProgram *)(metal_ctx.shader_program = prg);
 }
 
@@ -307,10 +406,7 @@ static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint3
     samplerDescriptor.sAddressMode = gfx_cm_to_metal(cms);
     samplerDescriptor.tAddressMode = gfx_cm_to_metal(cmt);
 
-    id<MTLSamplerState> sampler = [mDevice newSamplerStateWithDescriptor:samplerDescriptor];
-
-    // TODO: choose the correct texture data index to pass this to.
-    [mRenderEncoder setFragmentSamplerState:sampler atIndex:0];
+    sampler = [mDevice newSamplerStateWithDescriptor:samplerDescriptor];
 }
 
 static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) {
@@ -354,7 +450,20 @@ static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
     memcpy(vertexBuffer.contents, buf_vbo, sizeof(float) * buf_vbo_len);
 
     [mRenderEncoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
+
+    [mRenderEncoder setFragmentBuffer:uniformBuffer offset:0 atIndex:0];
+    if (metal_ctx.shader_program.used_textures[0]) {
+        [mRenderEncoder setFragmentTexture:metal_ctx.textures[0] atIndex:0];
+    }
+    if (metal_ctx.shader_program.used_textures[1]) {
+        [mRenderEncoder setFragmentTexture:metal_ctx.textures[1] atIndex:1];
+    }
+    [mRenderEncoder setFragmentSamplerState:sampler atIndex:0];
+
     [mRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle vertextStart:0 vertexCount:buf_vbo_num_tris * 3];
+
+    [mRenderEncoder endEncoding];
+    [mCommandBuffer commit];
 }
 
 static void gfx_metal_on_resize(void) {
@@ -362,12 +471,10 @@ static void gfx_metal_on_resize(void) {
 }
 
 static void gfx_metal_start_frame(void) {
-    // TODO: implement
+    metal_ctx.frame_uniforms.frameCount++
 }
 
 void gfx_metal_end_frame(void) {
-    [mRenderEncoder endEncoding];
-
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
     [mCommandBuffer presentDrawable: layer.nextDrawable];
     [mCommandBuffer commit];
@@ -394,6 +501,15 @@ static void gfx_metal_update_framebuffer_parameters(int fb_id, uint32_t width, u
 
 void gfx_metal_start_draw_to_framebuffer(int fb_id, float noise_scale) {
     // TODO: implement
+    if (noise_scale != 0.0f) {
+        metal_ctx.frame_uniforms.noiseScale = 1.0f / noise_scale;
+    }
+
+    if (!uniformBuffer) {
+        uniformBuffer = [mDevice newBufferWithLength:sizeof(Uniforms) options:MTLResourceOptionCPUCacheModeDefault];
+    }
+
+    memcpy(uniformBuffer.contents, &metal_ctx.frame_uniforms, sizeof(FrameUniforms));
 }
 
 void gfx_metal_clear_framebuffer(void) {
