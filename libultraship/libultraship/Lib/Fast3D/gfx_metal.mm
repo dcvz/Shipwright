@@ -123,33 +123,81 @@ static void gfx_metal_load_shader(struct ShaderProgram *new_prg) {
     metal_ctx.shader_program = (struct ShaderProgramMetal *)new_prg;
 }
 
+static void append_line(char *buf, size_t *len, const char *str) {
+    while (*str != '\0') buf[(*len)++] = *str++;
+    buf[(*len)++] = '\n';
+}
+
 static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shader_id0, uint32_t shader_id1) {
     CCFeatures cc_features;
     gfx_cc_get_features(shader_id0, shader_id1, &cc_features);
 
+    char buf[4096];
+    size_t len = 0;
     size_t num_floats = 4;
 
-    // define distance between two attributes data of two vertices
+    // Shader input struct
+    append_line(buf, &len, "#include <metal_stdlib>");
+    append_line(buf, &len, "using namespace metal;");
+
+    append_line(buf, &len, "struct ShaderInput {");
+    append_line(buf, &len, "    float4 position;");
     for (int i = 0; i < 2; i++) {
         if (cc_features.used_textures[i]) {
+            len += sprintf(buf + len, "    float2 texCoord%d;\n", i);
             num_floats += 2;
             for (int j = 0; j < 2; j++) {
                 if (cc_features.clamp[i][j]) {
+                    len += sprintf(buf + len, "    float texClamp%s%d;\n", j == 0 ? "S" : "T", i, j == 0 ? "S" : "T", i);
                     num_floats += 1;
                 }
             }
         }
     }
     if (cc_features.opt_fog) {
+        append_line(buf, &len, "    float4 fog;")
         num_floats += 4;
     }
     if (cc_features.opt_grayscale) {
+        append_line(buf, &len, "    float4 grayscale;")
         num_floats += 4;
     }
     for (int i = 0; i < cc_features.num_inputs; i++) {
+        append_line(buf, &len, "    float%d input%d;", cc_features.opt_alpha ? 4 : 3, i + 1)
         num_floats += cc_features.opt_alpha ? 4 : 3;
     }
-    // end distance finding
+    append_line(buf, &len, "};");
+    // end shader input struct
+
+    // vertex shader
+    append_line(buf, &len, "vertex ShaderInput vertexShader(ShaderInput in [[stage_in]]) {");
+    append_line(buf, &len, "    ShaderInput out;");
+    for (int i = 0; i < 2; i++) {
+        if (cc_features.used_textures[i]) {
+            len += sprintf(buf + len, "    out.texCoord%d = in.texCoord%d;\n", i, i);
+            for (int j = 0; j < 2; j++) {
+                if (cc_features.clamp[i][j]) {
+                    len += sprintf(buf + len, "    out.texClamp%s%d = in.texClamp%s%d;\n", j == 0 ? "S" : "T", i, j == 0 ? "S" : "T", i);
+                }
+            }
+        }
+    }
+
+    if (cc_features.opt_fog) {
+        append_line(buf, &len, "    out.fog = in.fog;");
+    }
+    if (cc_features.opt_grayscale) {
+        append_line(buf, &len, "    out.grayscale = in.grayscale;");
+    }
+    for (int i = 0; i < cc_features.num_inputs; i++) {
+        len += sprintf(buf + len, "    out.input%d = in.input%d;\n", i + 1, i + 1);
+    }
+
+    append_line(buf, &len, "    out.position = in.position;");
+    append_line(buf, &len, "    out.position.z = (out.position.z + out.position.w) / 2.0f;");
+    append_line(buf, &len, "    return out;");
+    append_line(buf, &len, "}");
+    // end vertex shader
 
     
     MTLRenderPipelineDescriptor* pipelineDescriptor = [MTLRenderPipelineDescriptor new];
@@ -175,7 +223,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
 
     // not sure about the vertex descriptor yet..
     MTLVertexDescriptor *vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
-    vertexDescriptor.layouts[0].stride = prg.num_floats
+    vertexDescriptor.layouts[0].stride = prg->num_floats;
 
     pipelineDescriptor.vertexDescriptor = vertexDescriptor;
 
