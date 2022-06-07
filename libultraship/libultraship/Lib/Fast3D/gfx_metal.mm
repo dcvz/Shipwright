@@ -33,6 +33,7 @@ static std::map<std::pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader
 static FilteringMode current_filter_mode = THREE_POINT;
 
 static struct {
+    struct ShaderProgramMetal *shader_program;
     NSMutableArray<id<MTLTexture>> *textures;
     int current_tile;
     uint32_t current_texture_ids[2];
@@ -116,17 +117,40 @@ static struct GfxClipParameters gfx_metal_get_clip_parameters() {
     return { true, false };
 }
 
-static void gfx_metal_unload_shader(struct ShaderProgram *old_prg) {
-    // TODO: implement
-}
+static void gfx_metal_unload_shader(struct ShaderProgram *old_prg) {}
 
 static void gfx_metal_load_shader(struct ShaderProgram *new_prg) {
-    // TODO: implement
+    metal_ctx.shader_program = (struct ShaderProgramMetal *)new_prg;
 }
 
 static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shader_id0, uint32_t shader_id1) {
     CCFeatures cc_features;
     gfx_cc_get_features(shader_id0, shader_id1, &cc_features);
+
+    size_t num_floats = 4;
+
+    // define distance between two attributes data of two vertices
+    for (int i = 0; i < 2; i++) {
+        if (cc_features.used_textures[i]) {
+            num_floats += 2;
+            for (int j = 0; j < 2; j++) {
+                if (cc_features.clamp[i][j]) {
+                    num_floats += 1;
+                }
+            }
+        }
+    }
+    if (cc_features.opt_fog) {
+        num_floats += 4;
+    }
+    if (cc_features.opt_grayscale) {
+        num_floats += 4;
+    }
+    for (int i = 0; i < cc_features.num_inputs; i++) {
+        num_floats += cc_features.opt_alpha ? 4 : 3;
+    }
+    // end distance finding
+
     
     MTLRenderPipelineDescriptor* pipelineDescriptor = [MTLRenderPipelineDescriptor new];
 
@@ -145,6 +169,15 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     }
 
     struct ShaderProgramMetal *prg = &shader_program_pool[std::make_pair(shader_id0, shader_id1)];
+    prg->used_textures[0] = cc_features.used_textures[0];
+    prg->used_textures[1] = cc_features.used_textures[1];
+    prg->num_floats = num_floats;
+
+    // not sure about the vertex descriptor yet..
+    MTLVertexDescriptor *vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
+    vertexDescriptor.layouts[0].stride = prg.num_floats
+
+    pipelineDescriptor.vertexDescriptor = vertexDescriptor;
 
     NSError* error = nil;
     mPipelineState = [mDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
@@ -156,6 +189,8 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         //  from Xcode)
         NSLog(@"Failed to created pipeline state, error %@", error);
     }
+
+    return (struct ShaderProgram *)(metal_ctx.shader_program = prg);
 }
 
 static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
@@ -163,7 +198,11 @@ static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32
 }
 
 static void gfx_metal_shader_get_info(struct ShaderProgram *prg, uint8_t *num_inputs, bool used_textures[2]) {
-    // TODO: implement
+    struct ShaderProgramMetal *p = (struct ShaderProgramMetal *)prg;
+
+    *num_inputs = p->num_inputs;
+    used_textures[0] = p->used_textures[0];
+    used_textures[1] = p->used_textures[1];
 }
 
 static uint32_t gfx_metal_new_texture(void) {
@@ -261,18 +300,13 @@ static void gfx_metal_set_use_alpha(bool use_alpha) {
 
 static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
     // TODO: implement
-    // [mRenderEncoder setVertexBuffer:mUniformBuffer offset:0 atIndex:1];
-    // [mRenderEncoder setVertexBuffer:mVertexBuffer offset:0 atIndex:0];
 
+    id<MTLBuffer> vertexBuffer = [mDevice newBufferWithLength:buf_vbo_len * sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
+    [vertexBuffer setLabel:@"VBO"];
+    memcpy(vertexBuffer.contents, buf_vbo, sizeof(float) * buf_vbo_len);
 
-    // Create Index Buffer
-
-    id <MTLBuffer> indexBuffer = [mDevice newBufferWithLength:sizeof(float) * buf_vbo_len
-                                                      options:MTLResourceOptionCPUCacheModeDefault];
-    [indexBuffer setLabel:@"IBO"];
-    memcpy(indexBuffer.contents, buf_vbo, sizeof(float) * buf_vbo_len);
-
-    [mRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle indexCount:3 * buf_vbo_num_tris indexType:MTLIndexTypeUInt32 indexBuffer:indexBuffer indexBufferOffset:0];
+    [mRenderEncoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
+    [mRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle vertextStart:0 vertexCount:buf_vbo_num_tris * 3];
 }
 
 static void gfx_metal_on_resize(void) {
