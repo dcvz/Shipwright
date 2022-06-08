@@ -245,13 +245,13 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
             num_floats += 2;
             for (int j = 0; j < 2; j++) {
                 if (cc_features.clamp[i][j]) {
-                    #ifdef __APPLE__
-                        vs_len += sprintf(vs_buf + vs_len, "in float aTexClamp%s%d;\n", j == 0 ? "S" : "T", i);
-                        vs_len += sprintf(vs_buf + vs_len, "out float vTexClamp%s%d;\n", j == 0 ? "S" : "T", i);
-                    #else
+                #ifdef __APPLE__
+                    vs_len += sprintf(vs_buf + vs_len, "in float aTexClamp%s%d;\n", j == 0 ? "S" : "T", i);
+                    vs_len += sprintf(vs_buf + vs_len, "out float vTexClamp%s%d;\n", j == 0 ? "S" : "T", i);
+                #else
                     vs_len += sprintf(vs_buf + vs_len, "attribute float aTexClamp%s%d;\n", j == 0 ? "S" : "T", i);
                     vs_len += sprintf(vs_buf + vs_len, "varying float vTexClamp%s%d;\n", j == 0 ? "S" : "T", i);
-                    #endif
+                #endif
                     num_floats += 1;
                 }
             }
@@ -512,9 +512,9 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
         GLint max_length = 0;
         glGetShaderiv(vertex_shader, GL_INFO_LOG_LENGTH, &max_length);
         char error_log[1024];
-        fprintf(stderr, "Vertex shader compilation failed\n");
+        //fprintf(stderr, "Vertex shader compilation failed\n");
         glGetShaderInfoLog(vertex_shader, max_length, &max_length, &error_log[0]);
-        fprintf(stderr, "%s\n", &error_log[0]);
+        //fprintf(stderr, "%s\n", &error_log[0]);
         abort();
     }
 
@@ -716,10 +716,10 @@ static void gfx_opengl_init(void) {
     glGenBuffers(1, &opengl_vbo);
     glBindBuffer(GL_ARRAY_BUFFER, opengl_vbo);
 
-    #ifdef __APPLE__
-        glGenVertexArrays(1, &opengl_vao);
-		glBindVertexArray(opengl_vao);
-    #endif
+#ifdef __APPLE__
+    glGenVertexArrays(1, &opengl_vao);
+	glBindVertexArray(opengl_vao);
+#endif
 
     glEnable(GL_DEPTH_CLAMP);
     glDepthFunc(GL_LEQUAL);
