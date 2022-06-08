@@ -718,7 +718,7 @@ static void gfx_opengl_init(void) {
 
 #ifdef __APPLE__
     glGenVertexArrays(1, &opengl_vao);
-	glBindVertexArray(opengl_vao);
+    glBindVertexArray(opengl_vao);
 #endif
 
     glEnable(GL_DEPTH_CLAMP);
