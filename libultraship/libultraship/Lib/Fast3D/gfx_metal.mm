@@ -14,6 +14,7 @@
 #include "Lib/SDL/SDL2/SDL_render.h"
 #include "Lib/ImGui/backends/imgui_impl_metal.h"
 #include "gfx_cc.h"
+#include "gfx_rendering_api.h"
 
 static SDL_Renderer* _renderer;
 static id<MTLDevice> mDevice;
@@ -85,12 +86,12 @@ void Metal_NewFrame() {
     MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
 
     id<CAMetalDrawable> drawable = [layer nextDrawable];
-    NSAssert(drawable != nil, @"Could not retrieve drawable from Metal layer");
+    //NSAssert(drawable != nil, @"Could not retrieve drawable from Metal layer");
 
     MTLClearColor clearColor = MTLClearColorMake(0.2, 0.2, 0.2, 1.0);
     renderPassDescriptor.colorAttachments[0].texture = drawable.texture;
     renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionClear;
-    renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore
+    renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
     renderPassDescriptor.colorAttachments[0].clearColor = clearColor;
 
     if(renderPassDescriptor != nil) {
@@ -164,7 +165,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
             num_floats += 2;
             for (int j = 0; j < 2; j++) {
                 if (cc_features.clamp[i][j]) {
-                    len += sprintf(buf + len, "    float texClamp%s%d [[attribute(%d)]];\n", j == 0 ? "S" : "T", i, j == 0 ? "S" : "T", i, vertexIndex);
+                    len += sprintf(buf + len, "    float texClamp%s%d [[attribute(%d)]];\n", j == 0 ? "S" : "T", i, vertexIndex);
                     vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat;
                     vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
                     vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
@@ -174,21 +175,21 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         }
     }
     if (cc_features.opt_fog) {
-        len += sprintf(buf + len, "    float4 fog [[attribute(%d)]];", vertexIndex)
+        len += sprintf(buf + len, "    float4 fog [[attribute(%d)]];", vertexIndex);
         vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat4;
         vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
         vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
         num_floats += 4;
     }
     if (cc_features.opt_grayscale) {
-        len += sprintf(buf + len, "    float4 grayscale [[attribute(%d)]];", vertexIndex)
+        len += sprintf(buf + len, "    float4 grayscale [[attribute(%d)]];", vertexIndex);
         vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat4;
         vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
         vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
         num_floats += 4;
     }
     for (int i = 0; i < cc_features.num_inputs; i++) {
-        len += sprintf(buf + len, "    float%d input%d [[attribute(%d)]];",  cc_features.opt_alpha ? 4 : 3, i + 1, vertexIndex)
+        len += sprintf(buf + len, "    float%d input%d [[attribute(%d)]];",  cc_features.opt_alpha ? 4 : 3, i + 1, vertexIndex);
         vertexDescriptor.attributes[vertexIndex].format = cc_features.opt_alpha ? MTLVertexFormatFloat4 : MTLVertexFormatFloat3;
         vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
         vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
@@ -206,7 +207,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
             len += sprintf(buf + len, "    float2 texCoord%d;\n", i);
             for (int j = 0; j < 2; j++) {
                 if (cc_features.clamp[i][j]) {
-                    len += sprintf(buf + len, "    float texClamp%s%d;\n", j == 0 ? "S" : "T", i, j == 0 ? "S" : "T", i);
+                    len += sprintf(buf + len, "    float texClamp%s%d;\n", j == 0 ? "S" : "T", i);
                 }
             }
         }
@@ -219,7 +220,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         append_line(buf, &len, "    float4 grayscale;");
     }
     for (int i = 0; i < cc_features.num_inputs; i++) {
-        len += sprintf(buf + len, "    float%d input%d;",  cc_features.opt_alpha ? 4 : 3, i + 1)
+        len += sprintf(buf + len, "    float%d input%d;",  cc_features.opt_alpha ? 4 : 3, i + 1);
     }
     append_line(buf, &len, "};");
     // end fragment output struct
@@ -267,12 +268,12 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
                 if (s && t) {
                     len += sprintf(buf + len, "    texCoord%d = clamp(texCoord%d, 0.5 / texSize%d, float2(input.texClampS%d, input.texClampT%d));\n", i, i, i, i, i);
                 } else if (s) {
-                    len += sprintf(buf + len, "    float2(clamp(texCoord%d.x, 0.5 / texSize%d.x, input.texClampS%d), texCoord%d.y);\n", i, i, i, i, i);
+                    len += sprintf(buf + len, "    float2(clamp(texCoord%d.x, 0.5 / texSize%d.x, input.texClampS%d), texCoord%d.y);\n", i, i, i, i);
                 } else {
                     len += sprintf(buf + len, "    texCoord%d = float2(texCoord%d.x, clamp(texCoord%d.y, 0.5 / texSize%d.y, input.texClampT%d));\n", i, i, i, i, i);
                 }
             }
-            if (metal_ctx.current_filter_mode == THREE_POINT) {
+            if (current_filter_mode == THREE_POINT) {
 
             } else {
                 len += sprintf(buf + len, "    float4 texVal%d = texture%d.sample(sampler%d, texCoord%d);\n", i, i, i, i);
@@ -452,15 +453,14 @@ static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
     [mRenderEncoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
 
     [mRenderEncoder setFragmentBuffer:uniformBuffer offset:0 atIndex:0];
-    if (metal_ctx.shader_program.used_textures[0]) {
+    if (metal_ctx.shader_program->used_textures[0]) {
         [mRenderEncoder setFragmentTexture:metal_ctx.textures[0] atIndex:0];
     }
-    if (metal_ctx.shader_program.used_textures[1]) {
+    if (metal_ctx.shader_program->used_textures[1]) {
         [mRenderEncoder setFragmentTexture:metal_ctx.textures[1] atIndex:1];
     }
     [mRenderEncoder setFragmentSamplerState:sampler atIndex:0];
-
-    [mRenderEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle vertextStart:0 vertexCount:buf_vbo_num_tris * 3];
+    [mRenderEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:buf_vbo_num_tris * 3];
 
     [mRenderEncoder endEncoding];
     [mCommandBuffer commit];
@@ -471,7 +471,7 @@ static void gfx_metal_on_resize(void) {
 }
 
 static void gfx_metal_start_frame(void) {
-    metal_ctx.frame_uniforms.frameCount++
+    metal_ctx.frame_uniforms.frameCount++;
 }
 
 void gfx_metal_end_frame(void) {
@@ -506,7 +506,7 @@ void gfx_metal_start_draw_to_framebuffer(int fb_id, float noise_scale) {
     }
 
     if (!uniformBuffer) {
-        uniformBuffer = [mDevice newBufferWithLength:sizeof(Uniforms) options:MTLResourceOptionCPUCacheModeDefault];
+        uniformBuffer = [mDevice newBufferWithLength:sizeof(FrameUniforms) options:MTLResourceOptionCPUCacheModeDefault];
     }
 
     memcpy(uniformBuffer.contents, &metal_ctx.frame_uniforms, sizeof(FrameUniforms));
