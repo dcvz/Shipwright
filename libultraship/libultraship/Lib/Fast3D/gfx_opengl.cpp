@@ -230,7 +230,7 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
     append_line(vs_buf, &vs_len, "#version 410 core");
     append_line(vs_buf, &vs_len, "in vec4 aVtxPos;");
 #else
-    append_line(vs_buf, &vs_len, "#version 130");
+    append_line(vs_buf, &vs_len, "#version 110");
     append_line(vs_buf, &vs_len, "attribute vec4 aVtxPos;");
 #endif
     for (int i = 0; i < 2; i++) {
@@ -316,7 +316,7 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
 #ifdef __APPLE__
     append_line(fs_buf, &fs_len, "#version 410 core");
 #else
-    append_line(fs_buf, &fs_len, "#version 130");
+    append_line(fs_buf, &fs_len, "#version 120");
 #endif
     //append_line(fs_buf, &fs_len, "precision mediump float;");
     for (int i = 0; i < 2; i++) {
