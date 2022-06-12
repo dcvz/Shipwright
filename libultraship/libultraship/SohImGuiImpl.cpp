@@ -1184,7 +1184,9 @@ namespace SohImGui {
                 if (ImGui::BeginMenu(category.first.c_str())) {
                     for (const std::string& name : category.second) {
                         std::string varName(name);
-                        varName.erase(std::ranges::remove_if(varName, isspace).begin(), varName.end());
+                        //varName.erase(std::ranges::remove_if(varName, isspace).begin(), varName.end());
+                        // erase spaces from string
+                        varName.erase(std::remove_if(varName.begin(), varName.end(), isspace), varName.end());
                         std::string toggleName = "g" + varName + "Enabled";
 
                         EnhancementCheckbox(name.c_str(), toggleName.c_str());

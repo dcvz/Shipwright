@@ -377,3 +377,8 @@ DerivedData/
 libultraship/DebugObj/*
 build/
 libultraship.a
+CMakeFiles
+CMakeScripts
+CMakeCache.txt
+cmake_install.cmake
+Project.xcodeproj
