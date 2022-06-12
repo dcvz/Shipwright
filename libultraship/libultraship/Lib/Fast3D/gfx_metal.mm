@@ -109,6 +109,8 @@ void Metal_NewFrame() {
 
 void Metal_RenderDrawData(ImDrawData* draw_data) {
     ImGui_ImplMetal_RenderDrawData(draw_data, mCommandBuffer, mRenderEncoder);
+
+    [mRenderEncoder endEncoding];
 }
 
 // MARK: - Metal Graphics Rendering API
@@ -295,9 +297,23 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     append_line(buf, &len, "}");
     // end fragment shader
 
-    
-    MTLRenderPipelineDescriptor* pipelineDescriptor = [MTLRenderPipelineDescriptor new];
+    vertexDescriptor.layouts[0].stride = num_floats * sizeof(float);
+    vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
 
+    NSError* error = nil;
+    id <MTLLibrary> library = [mDevice newLibraryWithSource:[NSString stringWithUTF8String:buf] options:nil error:&error];
+
+    if (!error) {
+        NSLog(@"Failed to compile shader library, error %@", error);
+    }
+
+    MTLRenderPipelineDescriptor* pipelineDescriptor = [MTLRenderPipelineDescriptor new];
+    pipelineDescriptor.vertexFunction = [library newFunctionWithName:@"vertexShader"];
+    pipelineDescriptor.fragmentFunction = [library newFunctionWithName:@"fragmentShader"];
+    pipelineDescriptor.vertexDescriptor = vertexDescriptor;
+
+    pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
+    pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
     if (cc_features.opt_alpha) {
         pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
         pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
@@ -312,18 +328,6 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         pipelineDescriptor.colorAttachments[0].writeMask = MTLColorWriteMaskAll;
     }
 
-    vertexDescriptor.layouts[0].stride = num_floats * sizeof(float);
-    vertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
-
-    //pipelineDescriptor.vertexFunction = material.vertexFunction;
-    //pipelineDescriptor.fragmentFunction = material.fragmentFunction;
-    pipelineDescriptor.vertexDescriptor = vertexDescriptor;
-
-    pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
-
-    pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
-
-    NSError* error = nil;
     mPipelineState = [mDevice newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
 
     if (!mPipelineState) {
@@ -338,6 +342,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     prg->used_textures[0] = cc_features.used_textures[0];
     prg->used_textures[1] = cc_features.used_textures[1];
     prg->num_floats = num_floats;
+
     return (struct ShaderProgram *)(metal_ctx.shader_program = prg);
 }
 
@@ -451,19 +456,19 @@ static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
     memcpy(vertexBuffer.contents, buf_vbo, sizeof(float) * buf_vbo_len);
 
     [mRenderEncoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
-
+    [mRenderEncoder setVertexBuffer:uniformBuffer offset:0 atIndex:1];
     [mRenderEncoder setFragmentBuffer:uniformBuffer offset:0 atIndex:0];
+
     if (metal_ctx.shader_program->used_textures[0]) {
         [mRenderEncoder setFragmentTexture:metal_ctx.textures[0] atIndex:0];
     }
     if (metal_ctx.shader_program->used_textures[1]) {
         [mRenderEncoder setFragmentTexture:metal_ctx.textures[1] atIndex:1];
     }
+
+
     [mRenderEncoder setFragmentSamplerState:sampler atIndex:0];
     [mRenderEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:buf_vbo_num_tris * 3];
-
-    [mRenderEncoder endEncoding];
-    [mCommandBuffer commit];
 }
 
 static void gfx_metal_on_resize(void) {
