@@ -2,6 +2,8 @@
 
 #ifdef ENABLE_METAL
 
+#include <vector>
+
 #ifndef _LANGUAGE_C
 #define _LANGUAGE_C
 #endif
@@ -20,7 +22,6 @@ static SDL_Renderer* _renderer;
 static id<MTLDevice> mDevice;
 static id<MTLCommandQueue> commandQueue;
 
-static id<MTLSamplerState> sampler;
 static id<MTLRenderPipelineState> mPipelineState;
 static id<MTLCommandBuffer> mCommandBuffer;
 static id <MTLRenderCommandEncoder> mRenderEncoder;
@@ -33,12 +34,18 @@ struct ShaderProgramMetal {
     bool used_textures[2];
 };
 
+struct GfxTexture {
+    id<MTLTexture> texture;
+    id<MTLSamplerState> sampler;
+    bool linear_filtering;
+};
+
 static std::map<std::pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
 static FilteringMode current_filter_mode = THREE_POINT;
 
 static struct {
     struct ShaderProgramMetal *shader_program;
-    NSMutableArray<id<MTLTexture>> *textures;
+    std::vector<struct GfxTexture> textures;
     int current_tile;
     uint32_t current_texture_ids[2];
 
@@ -67,8 +74,6 @@ bool Metal_Init() {
     if (!result) return result;
 
     commandQueue = [mDevice newCommandQueue];
-
-    metal_ctx.textures = [[NSMutableArray alloc] init];
 
     return result;
 }
@@ -359,7 +364,8 @@ static void gfx_metal_shader_get_info(struct ShaderProgram *prg, uint8_t *num_in
 }
 
 static uint32_t gfx_metal_new_texture(void) {
-    return [metal_ctx.textures count];
+    metal_ctx.textures.resize(metal_ctx.textures.size() + 1);
+    return (uint32_t)(metal_ctx.textures.size() - 1);
 }
 
 static void gfx_metal_delete_texture(uint32_t texID) {
@@ -372,21 +378,21 @@ static void gfx_metal_select_texture(int tile, uint32_t texture_id) {
 }
 
 static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, uint32_t height) {
+    GfxTexture *texture_data = &metal_ctx.textures[metal_ctx.current_texture_ids[metal_ctx.current_tile]];
+
     MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:width height:height mipmapped:YES];
 
+    textureDescriptor.usage = MTLTextureUsageShaderRead;
+    textureDescriptor.storageMode = MTLStorageModePrivate;
+    textureDescriptor.arrayLength = 1;
+    textureDescriptor.mipmapLevelCount = 1;
     textureDescriptor.sampleCount = 1;
-//    textureDescriptor.usage = MTLTextureUsageShaderRead;
-//    textureDescriptor.cpuCacheMode = MTLCPUCacheModeDefaultCache;
 
-    id<MTLTexture> texture = [mDevice newTextureWithDescriptor:textureDescriptor];
-    [metal_ctx.textures addObject:texture];
+    texture_data->texture = [mDevice newTextureWithDescriptor:textureDescriptor];
 
     MTLRegion region = MTLRegionMake2D(0, 0, width, height);
     NSUInteger bytesPerPixel = 4;
-    [texture replaceRegion:region mipmapLevel:0 withBytes:rgba32_buf bytesPerRow:width * bytesPerPixel];
-
-    // TODO: choose the correct index to pass this to.
-    [mRenderEncoder setFragmentTexture:texture atIndex:0];
+    [texture_data->texture replaceRegion:region mipmapLevel:1 withBytes:rgba32_buf bytesPerRow:width * bytesPerPixel];
 }
 
 static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
@@ -411,8 +417,17 @@ static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint3
     samplerDescriptor.magFilter = filter;
     samplerDescriptor.sAddressMode = gfx_cm_to_metal(cms);
     samplerDescriptor.tAddressMode = gfx_cm_to_metal(cmt);
+    samplerDescriptor.rAddressMode = MTLSamplerAddressModeRepeat;
 
-    sampler = [mDevice newSamplerStateWithDescriptor:samplerDescriptor];
+    GfxTexture *texture_data = &metal_ctx.textures[metal_ctx.current_texture_ids[metal_ctx.current_tile]];
+    texture_data->linear_filtering = linear_filter;
+
+    // This function is called twice per texture, the first one only to set default values.
+    // Maybe that could be skipped? Anyway, make sure to release the first default sampler
+    // state before setting the actual one.
+    [texture_data->sampler release];
+
+    texture_data->sampler = [mDevice newSamplerStateWithDescriptor:samplerDescriptor];
 }
 
 static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) {
@@ -437,10 +452,12 @@ static void gfx_metal_set_zmode_decal(bool zmode_decal) {
 }
 
 static void gfx_metal_set_viewport(int x, int y, int width, int height) {
+    // TODO: maybe we have to invert the y?
     [mRenderEncoder setViewport:(MTLViewport){x, y, width, height, 0.0, 1.0 }];
 }
 
 static void gfx_metal_set_scissor(int x, int y, int width, int height) {
+    // TODO: maybe we have to invert the y?
     [mRenderEncoder setScissorRect:(MTLScissorRect){ x, y, width, height }];
 }
 
@@ -459,15 +476,16 @@ static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
     [mRenderEncoder setVertexBuffer:uniformBuffer offset:0 atIndex:1];
     [mRenderEncoder setFragmentBuffer:uniformBuffer offset:0 atIndex:0];
 
-    if (metal_ctx.shader_program->used_textures[0]) {
-        [mRenderEncoder setFragmentTexture:metal_ctx.textures[0] atIndex:0];
-    }
-    if (metal_ctx.shader_program->used_textures[1]) {
-        [mRenderEncoder setFragmentTexture:metal_ctx.textures[1] atIndex:1];
+    for (int i = 0; i < 2; i++) {
+        if (metal_ctx.shader_program->used_textures[i]) {
+            [mRenderEncoder setFragmentTexture:metal_ctx.textures[i].texture atIndex:i];
+
+            // check and handle three point filter?
+
+            [mRenderEncoder setFragmentSamplerState:metal_ctx.textures[i].sampler atIndex:i];
+        }
     }
 
-
-    [mRenderEncoder setFragmentSamplerState:sampler atIndex:0];
     [mRenderEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:buf_vbo_num_tris * 3];
 }
 
