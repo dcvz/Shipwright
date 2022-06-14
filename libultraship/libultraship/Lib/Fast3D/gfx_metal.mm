@@ -26,7 +26,8 @@ static id<MTLRenderPipelineState> mPipelineState;
 static id<MTLCommandBuffer> mCommandBuffer;
 static id <MTLRenderCommandEncoder> mRenderEncoder;
 
-static id<MTLBuffer> uniformBuffer;
+static id<MTLBuffer> frameUniformBuffer;
+static id<MTLBuffer> drawUniformBuffer;
 
 struct ShaderProgramMetal {
     uint8_t num_inputs;
@@ -276,7 +277,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     // end vertex shader
 
     // fragment shader
-    append_line(buf, &len, "float4 fragmentShader(ProjectedVertex in [[stage_in]], constant FrameUniforms &frameUniforms [[buffer(0)]], constant DrawUniforms &texture0Uniforms [[buffer(1)]], constant DrawUniforms &texture1Uniforms [[buffer(2)]], texture2d<float> texture0 [[texture(0)]], texture2d<float> texture1 [[texture(1)]], sampler sampler0 [[sampler(0)]], sampler sampler1 [[sampler(1)]]) {");
+    append_line(buf, &len, "float4 fragmentShader(ProjectedVertex in [[stage_in]], constant FrameUniforms &frameUniforms [[buffer(0)]], constant DrawUniforms &textureUniforms [[buffer(1)]], texture2d<float> texture0 [[texture(0)]], texture2d<float> texture1 [[texture(1)]], sampler sampler0 [[sampler(0)]], sampler sampler1 [[sampler(1)]]) {");
 
     for (int i = 0; i < 2; i++) {
         if (cc_features.used_textures[i]) {
@@ -484,8 +485,8 @@ static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
     memcpy(vertexBuffer.contents, buf_vbo, sizeof(float) * buf_vbo_len);
 
     [mRenderEncoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
-    [mRenderEncoder setVertexBuffer:uniformBuffer offset:0 atIndex:1];
-    [mRenderEncoder setFragmentBuffer:uniformBuffer offset:0 atIndex:0];
+    [mRenderEncoder setFragmentBuffer:frameUniformBuffer offset:0 atIndex:0];
+    [mRenderEncoder setFragmentBuffer:drawUniformBuffer offset:0 atIndex:2];
 
     for (int i = 0; i < 2; i++) {
         if (metal_ctx.shader_program->used_textures[i]) {
@@ -496,6 +497,10 @@ static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
             [mRenderEncoder setFragmentSamplerState:metal_ctx.textures[i].sampler atIndex:i];
         }
     }
+
+    [mRenderEncoder setRenderPipelineState:mPipelineState];
+    [mRenderEncoder setCullMode:MTLCullModeBack];
+    [mRenderEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
 
     [mRenderEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:buf_vbo_num_tris * 3];
 }
@@ -539,11 +544,16 @@ void gfx_metal_start_draw_to_framebuffer(int fb_id, float noise_scale) {
         metal_ctx.frame_uniforms.noiseScale = 1.0f / noise_scale;
     }
 
-    if (!uniformBuffer) {
-        uniformBuffer = [mDevice newBufferWithLength:sizeof(FrameUniforms) options:MTLResourceOptionCPUCacheModeDefault];
+    if (!frameUniformBuffer) {
+        frameUniformBuffer = [mDevice newBufferWithLength:sizeof(FrameUniforms) options:MTLResourceOptionCPUCacheModeDefault];
     }
 
-    memcpy(uniformBuffer.contents, &metal_ctx.frame_uniforms, sizeof(FrameUniforms));
+    if (!drawUniformBuffer) {
+        drawUniformBuffer = [mDevice newBufferWithLength:sizeof(DrawUniforms) options:MTLResourceOptionCPUCacheModeDefault];
+    }
+
+    memcpy(frameUniformBuffer.contents, &metal_ctx.frame_uniforms, sizeof(FrameUniforms));
+    memcpy(drawUniformBuffer.contents, &metal_ctx.draw_uniforms, sizeof(DrawUniforms));
 }
 
 void gfx_metal_clear_framebuffer(void) {
