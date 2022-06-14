@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#if defined(ENABLE_OPENGL)
+#if defined(ENABLE_OPENGL) || defined(ENABLE_METAL)
 
 #ifdef __MINGW32__
 #define FOR_WINDOWS 1

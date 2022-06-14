@@ -364,7 +364,8 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
 }
 
 static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
-    // TODO: implement
+        auto it = metal_ctx.shader_program_pool.find(std::make_pair(shader_id0, shader_id1));
+        return it == metal_ctx.shader_program_pool.end() ? nullptr : (struct ShaderProgram *)&it->second;
 }
 
 static void gfx_metal_shader_get_info(struct ShaderProgram *prg, uint8_t *num_inputs, bool used_textures[2]) {
