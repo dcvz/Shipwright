@@ -27,7 +27,9 @@ CXXWARN := -Wno-deprecated-enum-enum-conversion
 CXXFLAGS := $(WARN) $(CXXWARN) -std=c++20 -D_GNU_SOURCE -DENABLE_OPENGL -DSPDLOG_ACTIVE_LEVEL=0
 CFLAGS := $(WARN) $(CWARN) -std=c99 -D_GNU_SOURCE -DENABLE_OPENGL -DSPDLOG_ACTIVE_LEVEL=0
 CPPFLAGS := -MMD
-MMFLAGS := -ObjC++ -fobjc-weak -fobjc-arc
+STD_ISYSTEM=$(shell ${CXX} -xc++ -E -v - < /dev/null 2>&1  | grep "> search starts here" -A2 | tail -n 2 | head -n 1)
+CXX_ISYSTEM=$(shell ${CXX} -xc++ -E -v - < /dev/null 2>&1  | grep "> search starts here" -A2 | tail -n 2 | tail -n 1)
+MMFLAGS := -ObjC++ -fobjc-weak -fobjc-arc -stdlib++-isystem ${STD_ISYSTEM} -cxx-isystem ${CXX_ISYSTEM}
 
 ifeq ($(UNAME), Darwin) #APPLE
 	CXXFLAGS += -Wno-ignored-qualifiers -DENABLE_METAL -Wno-return-type
