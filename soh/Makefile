@@ -126,6 +126,8 @@ ifeq ($(UNAME), Darwin) #APPLE
 LDLIBS += \
 	$(addprefix -framework, \
 	OpenGL \
+	Foundation \
+	Metal \
 ) \
 	$(shell sdl2-config --libs) $(shell pkg-config --libs glew)
 endif
