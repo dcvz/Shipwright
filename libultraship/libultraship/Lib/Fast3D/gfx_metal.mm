@@ -18,6 +18,8 @@
 #include "gfx_cc.h"
 #include "gfx_rendering_api.h"
 
+#include "gfx_pc.h"
+
 static SDL_Renderer* _renderer;
 static id<MTLDevice> mDevice;
 static id<MTLCommandQueue> commandQueue;
@@ -578,7 +580,8 @@ void gfx_metal_select_texture_fb(int fb_id) {
 }
 
 void gfx_metal_set_texture_filter(FilteringMode mode) {
-    // TODO: implement
+    metal_ctx.current_filter_mode = mode;
+    gfx_texture_cache_clear();
 }
 
 FilteringMode gfx_metal_get_texture_filter(void) {
