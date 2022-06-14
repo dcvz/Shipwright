@@ -43,7 +43,7 @@ struct GfxTexture {
 static struct {
     std::map<std::pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
 
-    std::vector<GfxTexture> textures;
+    std::vector<struct GfxTexture> textures;
     int current_tile;
     uint32_t current_texture_ids[2];
 
@@ -52,6 +52,7 @@ static struct {
     FilteringMode current_filter_mode = THREE_POINT;
 
     FrameUniforms frame_uniforms;
+    DrawUniforms draw_uniforms;
 } metal_ctx;
 
 // MARK: - Helpers
@@ -148,15 +149,25 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
 
     MTLVertexDescriptor *vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
 
+    memset(buf, 0, sizeof(buf));
     append_line(buf, &len, "#include <metal_stdlib>");
     append_line(buf, &len, "using namespace metal;");
 
     // Uniforms struct
     append_line(buf, &len, "struct FrameUniforms {");
-    append_line(buf, &len, "    uint noise_frame;");
+    append_line(buf, &len, "    int noise_frame;");
     append_line(buf, &len, "    float noise_scale;");
     append_line(buf, &len, "};");
     // end uniforms struct
+
+    // DrawUniforms struct
+    append_line(buf, &len, "struct DrawUniforms {");
+    append_line(buf, &len, "    uint16_t width;");
+    append_line(buf, &len, "    uint16_t height;");
+    append_line(buf, &len, "    bool linearFiltering;");
+    append_line(buf, &len, "};");
+    // end draw uniforms struct
+
 
     // Vertex struct
     append_line(buf, &len, "struct Vertex {");
@@ -265,21 +276,21 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     // end vertex shader
 
     // fragment shader
-    append_line(buf, &len, "float4 fragmentShader(ShaderInput in [[stage_in]], constant FrameUniforms &frameUniforms [[buffer(0)]], constant DrawUniforms &texture0Uniforms [[buffer(1)]], constant DrawUniforms &texture1Uniforms [[buffer(2)]], texture2d<float> texture0 [[texture(0)]], texture2d<float> texture1 [[texture(1)]], sampler sampler0 [[sampler(0)]], sampler sampler1 [[sampler(1)]]) {");
+    append_line(buf, &len, "float4 fragmentShader(ProjectedVertex in [[stage_in]], constant FrameUniforms &frameUniforms [[buffer(0)]], constant DrawUniforms &texture0Uniforms [[buffer(1)]], constant DrawUniforms &texture1Uniforms [[buffer(2)]], texture2d<float> texture0 [[texture(0)]], texture2d<float> texture1 [[texture(1)]], sampler sampler0 [[sampler(0)]], sampler sampler1 [[sampler(1)]]) {");
 
     for (int i = 0; i < 2; i++) {
         if (cc_features.used_textures[i]) {
-            len += sprintf(buf + len, "    float2 texCoord%d = input.texCoord%d;\n", i, i);
+            len += sprintf(buf + len, "    float2 texCoord%d = in.texCoord%d;\n", i, i);
             bool s = cc_features.clamp[i][0], t = cc_features.clamp[i][1];
             if (!s && !t) {}
             else {
                 len += sprintf(buf + len, "    const auto texSize%d = ushort2(texture%d.get_width(), texture%d.get_height());\n", i, i, i);
                 if (s && t) {
-                    len += sprintf(buf + len, "    texCoord%d = clamp(texCoord%d, 0.5 / texSize%d, float2(input.texClampS%d, input.texClampT%d));\n", i, i, i, i, i);
+                    len += sprintf(buf + len, "    texCoord%d = clamp(texCoord%d, 0.5 / texSize%d, float2(in.texClampS%d, in.texClampT%d));\n", i, i, i, i, i);
                 } else if (s) {
-                    len += sprintf(buf + len, "    float2(clamp(texCoord%d.x, 0.5 / texSize%d.x, input.texClampS%d), texCoord%d.y);\n", i, i, i, i);
+                    len += sprintf(buf + len, "    float2(clamp(texCoord%d.x, 0.5 / texSize%d.x, in.texClampS%d), texCoord%d.y);\n", i, i, i, i);
                 } else {
-                    len += sprintf(buf + len, "    texCoord%d = float2(texCoord%d.x, clamp(texCoord%d.y, 0.5 / texSize%d.y, input.texClampT%d));\n", i, i, i, i, i);
+                    len += sprintf(buf + len, "    texCoord%d = float2(texCoord%d.x, clamp(texCoord%d.y, 0.5 / texSize%d.y, in.texClampT%d));\n", i, i, i, i, i);
                 }
             }
             if (metal_ctx.current_filter_mode == THREE_POINT) {
@@ -290,16 +301,14 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         }
     }
 
+
+
     if (cc_features.opt_alpha) {
-        if (cc_features.opt_alpha_threshold) {
-            append_line(buf, &len, "    if (texel.a < 8.0 / 256.0) discard_fragment();");
-        }
-        if (cc_features.opt_invisible) {
-            append_line(buf, &len, "    texel.a = 0.0;");
-        }
-        append_line(buf, &len, "    return texel;");
+        // TODO: figure this out
+        append_line(buf, &len, "    return float4(0.0, 0.0, 0.0, 0.0);");
     } else {
-        append_line(buf, &len, "    return float4(texel, 1.0);");
+        // TODO: figure this out
+        append_line(buf, &len, "    return float4(0.0, 0.0, 0.0, 0.0);");
     }
     append_line(buf, &len, "}");
     // end fragment shader
