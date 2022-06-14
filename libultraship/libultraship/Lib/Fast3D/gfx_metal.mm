@@ -40,14 +40,16 @@ struct GfxTexture {
     bool linear_filtering;
 };
 
-static std::map<std::pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
-static FilteringMode current_filter_mode = THREE_POINT;
-
 static struct {
-    struct ShaderProgramMetal *shader_program;
-    std::vector<struct GfxTexture> textures;
+    std::map<std::pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
+
+    std::vector<GfxTexture> textures;
     int current_tile;
     uint32_t current_texture_ids[2];
+
+    // Current state
+    struct ShaderProgramMetal *shader_program;
+    FilteringMode current_filter_mode = THREE_POINT;
 
     FrameUniforms frame_uniforms;
 } metal_ctx;
@@ -280,7 +282,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
                     len += sprintf(buf + len, "    texCoord%d = float2(texCoord%d.x, clamp(texCoord%d.y, 0.5 / texSize%d.y, input.texClampT%d));\n", i, i, i, i, i);
                 }
             }
-            if (current_filter_mode == THREE_POINT) {
+            if (metal_ctx.current_filter_mode == THREE_POINT) {
 
             } else {
                 len += sprintf(buf + len, "    float4 texVal%d = texture%d.sample(sampler%d, texCoord%d);\n", i, i, i, i);
@@ -343,7 +345,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         NSLog(@"Failed to created pipeline state, error %@", error);
     }
 
-    struct ShaderProgramMetal *prg = &shader_program_pool[std::make_pair(shader_id0, shader_id1)];
+    struct ShaderProgramMetal *prg = &metal_ctx.shader_program_pool[std::make_pair(shader_id0, shader_id1)];
     prg->used_textures[0] = cc_features.used_textures[0];
     prg->used_textures[1] = cc_features.used_textures[1];
     prg->num_floats = num_floats;
@@ -412,7 +414,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
 static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint32_t cms, uint32_t cmt) {
     MTLSamplerDescriptor *samplerDescriptor = [MTLSamplerDescriptor new];
-    MTLSamplerMinMagFilter filter = linear_filter && current_filter_mode == LINEAR ? MTLSamplerMinMagFilterLinear : MTLSamplerMinMagFilterNearest;
+    MTLSamplerMinMagFilter filter = linear_filter && metal_ctx.current_filter_mode == LINEAR ? MTLSamplerMinMagFilterLinear : MTLSamplerMinMagFilterNearest;
     samplerDescriptor.minFilter = filter;
     samplerDescriptor.magFilter = filter;
     samplerDescriptor.sAddressMode = gfx_cm_to_metal(cms);
@@ -423,9 +425,9 @@ static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint3
     texture_data->linear_filtering = linear_filter;
 
     // This function is called twice per texture, the first one only to set default values.
-    // Maybe that could be skipped? Anyway, make sure to release the first default sampler
-    // state before setting the actual one.
-    [texture_data->sampler release];
+   // Maybe that could be skipped? Anyway, make sure to release the first default sampler
+   // state before setting the actual one.
+//   [texture_data->sampler release];
 
     texture_data->sampler = [mDevice newSamplerStateWithDescriptor:samplerDescriptor];
 }
@@ -548,7 +550,7 @@ std::map<std::pair<float, float>, uint16_t> gfx_metal_get_pixel_depth(int fb_id,
 }
 
 void *gfx_metal_get_framebuffer_texture_id(int fb_id) {
-    // TODO: implement
+    //return (void *)metal_ctx.textures[metal_ctx.current_tile];
 }
 
 void gfx_metal_select_texture_fb(int fb_id) {
@@ -560,7 +562,7 @@ void gfx_metal_set_texture_filter(FilteringMode mode) {
 }
 
 FilteringMode gfx_metal_get_texture_filter(void) {
-    return current_filter_mode;
+    return metal_ctx.current_filter_mode;
 }
 
 struct GfxRenderingAPI gfx_metal_api = {

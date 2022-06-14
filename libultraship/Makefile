@@ -30,8 +30,8 @@ CPPFLAGS := -MMD
 MMFLAGS := -ObjC++ -fobjc-weak -fobjc-arc
 
 ifeq ($(UNAME), Darwin) #APPLE
-	CXXFLAGS += -Wno-ignored-qualifiers -DENABLE_METAL
-	CPPFLAGS += -DENABLE_METAL -framework OpenGL
+	CXXFLAGS += -Wno-ignored-qualifiers -DENABLE_METAL -Wno-return-type
+	CPPFLAGS += -DENABLE_METAL -framework OpenGL -framework Metal -framework Foundation
 	CPPFLAGS += $(shell pkg-config --cflags sdl2 glew)
 endif
 
