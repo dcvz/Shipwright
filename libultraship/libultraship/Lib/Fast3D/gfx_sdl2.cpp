@@ -31,10 +31,9 @@
 #endif
 #include <time.h>
 
-#define GFX_API_NAME "SDL2 - OpenGL"
-
 static SDL_Window *wnd;
 static SDL_GLContext ctx;
+static SDL_Renderer* renderer;
 static int inverted_scancode_table[512];
 static int vsync_enabled = 0;
 static unsigned int window_width = DESIRED_SCREEN_WIDTH;
@@ -131,11 +130,20 @@ static int target_fps = 60;
 #define FRAME_INTERVAL_US_NUMERATOR 1000000
 #define FRAME_INTERVAL_US_DENOMINATOR (target_fps)
 
-static void gfx_sdl_init(const char *game_name, bool start_in_fullscreen) {
+static void gfx_sdl_init(const char *game_name, const char *renderer_api_name, bool start_in_fullscreen) {
     SDL_Init(SDL_INIT_VIDEO);
 
+#if defined(ENABLE_METAL)
+if (strcmp(renderer_api_name, "Metal") == 0) {
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "metal");
+} else {
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+}
+#else
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+#endif
 
 #ifdef _WIN32
     timer = CreateWaitableTimer(nullptr, false, nullptr);
@@ -145,22 +153,30 @@ static void gfx_sdl_init(const char *game_name, bool start_in_fullscreen) {
     //SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
     char title[512];
-    int len = sprintf(title, "%s (%s)", game_name, GFX_API_NAME);
+    int len = sprintf(title, "%s (%s - %s)", game_name, "SDL", renderer_api_name);
 
-    #if defined(ENABLE_METAL)
-    // Inform SDL that we will be using metal for rendering. Without this hint initialization of metal renderer may fail.
-    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "metal");
-    #endif
+    Uint32 flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
+
+#if defined(ENABLE_METAL)
+    if (strcmp(renderer_api_name, "Metal") == 0) {
+        flags = flags | SDL_WINDOW_METAL;
+    } else {
+        flags = flags | SDL_WINDOW_OPENGL;
+    }
+#else
+    flags = flags | SDL_WINDOW_OPENGL;
+#endif
 
     wnd = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-            window_width, window_height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+            window_width, window_height, flags);
 
     if (start_in_fullscreen) {
         set_fullscreen(true, false);
     }
 
-    #if defined(ENABLE_METAL)
-        SDL_Renderer* renderer = SDL_CreateRenderer(wnd, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+#if defined(ENABLE_METAL)
+    if (strcmp(renderer_api_name, "Metal") == 0) {
+        renderer  = SDL_CreateRenderer(wnd, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
         if (renderer == NULL)
         {
             printf("Error creating renderer: %s\n", SDL_GetError());
@@ -168,15 +184,18 @@ static void gfx_sdl_init(const char *game_name, bool start_in_fullscreen) {
         }
 
         Metal_SetRenderer(renderer);
-    #endif
-
+    } else {
+        ctx = SDL_GL_CreateContext(wnd);
+        SDL_GL_SetSwapInterval(1);
+    }
+#else
     ctx = SDL_GL_CreateContext(wnd);
-
     SDL_GL_SetSwapInterval(1);
+#endif
 
     SohImGui::WindowImpl window_impl;
     window_impl.backend = SohImGui::Backend::SDL;
-    window_impl.sdl = { wnd, ctx };
+    window_impl.sdl = { wnd, ctx, strcmp(renderer_api_name, "Metal") == 0 };
     SohImGui::Init(window_impl);
 
     for (size_t i = 0; i < sizeof(windows_scancode_table) / sizeof(SDL_Scancode); i++) {
@@ -268,6 +287,7 @@ static void gfx_sdl_handle_events(void) {
                 }
                 break;
             case SDL_QUIT:
+                SDL_DestroyRenderer(renderer);
                 SDL_Quit(); // bandaid fix for linux window closing issue
                 exit(0);
         }

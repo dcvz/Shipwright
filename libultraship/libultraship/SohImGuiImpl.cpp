@@ -125,11 +125,12 @@ namespace SohImGui {
     void ImGuiWMInit() {
         switch (impl.backend) {
         case Backend::SDL:
-            #if defined(ENABLE_METAL)
-            ImGui_ImplSDL2_InitForMetal(static_cast<SDL_Window*>(impl.sdl.window));
-            #else
+            if (impl.sdl.is_metal) {
+                ImGui_ImplSDL2_InitForMetal(static_cast<SDL_Window*>(impl.sdl.window));
+                break;
+            }
+                
             ImGui_ImplSDL2_InitForOpenGL(static_cast<SDL_Window*>(impl.sdl.window), impl.sdl.context);
-            #endif
             break;
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
         case Backend::DX11:
@@ -145,11 +146,12 @@ namespace SohImGui {
     void ImGuiBackendInit() {
         switch (impl.backend) {
         case Backend::SDL:
-            #if defined(ENABLE_METAL)
+            if (impl.sdl.is_metal) {
                 Metal_Init();
-            #else
-                ImGui_ImplOpenGL3_Init("#version 120");
-            #endif
+                break;
+            }
+            
+            ImGui_ImplOpenGL3_Init("#version 120");
             break;
 
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
@@ -195,11 +197,12 @@ namespace SohImGui {
     void ImGuiBackendNewFrame() {
         switch (impl.backend) {
         case Backend::SDL:
-        #if defined(ENABLE_METAL)
-            Metal_NewFrame();
-        #else
+            if (impl.sdl.is_metal) {
+                Metal_NewFrame();
+                break;
+            }
+            
             ImGui_ImplOpenGL3_NewFrame();
-        #endif
             break;
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
         case Backend::DX11:
@@ -214,11 +217,12 @@ namespace SohImGui {
     void ImGuiRenderDrawData(ImDrawData* data) {
         switch (impl.backend) {
         case Backend::SDL:
-        #if defined(ENABLE_METAL)
-            Metal_RenderDrawData(data);
-        #else
+             if (impl.sdl.is_metal) {
+                  Metal_RenderDrawData(data);
+                  break;
+             }
+
             ImGui_ImplOpenGL3_RenderDrawData(data);
-        #endif
             break;
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
         case Backend::DX11:

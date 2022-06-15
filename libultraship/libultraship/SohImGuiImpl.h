@@ -33,6 +33,7 @@ namespace SohImGui {
             struct {
                 void* window;
                 void* context;
+                bool is_metal;
             } sdl;
         };
     } WindowImpl;

@@ -131,6 +131,10 @@ static void gfx_metal_init(void) {
     layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
 }
 
+static const char* gfx_metal_get_name() {
+    return "Metal";
+}
+
 static struct GfxClipParameters gfx_metal_get_clip_parameters() {
     return { true, false };
 }
@@ -589,6 +593,7 @@ FilteringMode gfx_metal_get_texture_filter(void) {
 }
 
 struct GfxRenderingAPI gfx_metal_api = {
+    gfx_metal_get_name,
     gfx_metal_get_clip_parameters,
     gfx_metal_unload_shader,
     gfx_metal_load_shader,
