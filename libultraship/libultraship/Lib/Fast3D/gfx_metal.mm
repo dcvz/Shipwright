@@ -20,13 +20,18 @@
 
 #include "gfx_pc.h"
 
+#include <simd/simd.h>
+
 static SDL_Renderer* _renderer;
+static CAMetalLayer* mLayer;
 static id<MTLDevice> mDevice;
-static id<MTLCommandQueue> commandQueue;
+static id<MTLCommandQueue> mCommandQueue;
 
 static id<MTLRenderPipelineState> mPipelineState;
-static id<MTLCommandBuffer> mCommandBuffer;
-static id <MTLRenderCommandEncoder> mRenderEncoder;
+static MTLRenderPassDescriptor* mCurrentRenderPass;
+//static id<MTLCommandBuffer> mCommandBuffer;
+//static id <MTLRenderCommandEncoder> mRenderEncoder;
+static id<CAMetalDrawable> mCurrentDrawable;
 
 static id<MTLBuffer> frameUniformBuffer;
 
@@ -52,6 +57,12 @@ static struct {
     // Current state
     struct ShaderProgramMetal *shader_program;
     FilteringMode current_filter_mode = THREE_POINT;
+
+    uint8_t depth_test_and_mask;
+    bool decal_mode;
+
+    MTLViewport viewport;
+    MTLScissorRect scissor;
 
     FrameUniforms frame_uniforms;
 } metal_ctx;
@@ -158,31 +169,21 @@ void Metal_SetRenderer(SDL_Renderer* renderer) {
 }
 
 bool Metal_Init() {
-    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    mLayer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
+    mLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
 
-    mDevice = layer.device;
-    bool result = ImGui_ImplMetal_Init(mDevice);
-    if (!result) return result;
-
-    commandQueue = [mDevice newCommandQueue];
-
-    return result;
+    mDevice = mLayer.device;
+    return ImGui_ImplMetal_Init(mDevice);
 }
 
 void Metal_NewFrame() {
-    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-
     int width, height;
     SDL_GetRendererOutputSize(_renderer, &width, &height);
-    layer.drawableSize = CGSizeMake(width, height);
-
-    mCommandBuffer = [commandQueue commandBuffer];
-    mCommandBuffer.label = @"SoHCommand";
+    mLayer.drawableSize = CGSizeMake(width, height);
 
     MTLRenderPassDescriptor* renderPassDescriptor = [MTLRenderPassDescriptor renderPassDescriptor];
 
-    id<CAMetalDrawable> drawable = [layer nextDrawable];
+    id<CAMetalDrawable> drawable = [mLayer nextDrawable];
     //NSAssert(drawable != nil, @"Could not retrieve drawable from Metal layer");
 
     MTLClearColor clearColor = MTLClearColorMake(0.2, 0.2, 0.2, 1.0);
@@ -191,23 +192,23 @@ void Metal_NewFrame() {
     renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
     renderPassDescriptor.colorAttachments[0].clearColor = clearColor;
 
-    if(renderPassDescriptor != nil) {
-        // Create a render command encoder so we can render into something
-        mRenderEncoder = [mCommandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
-        mRenderEncoder.label = @"SoHRenderEncoder";
+//    renderPass.depthAttachment.texture = self.depthTexture;
+//    renderPass.depthAttachment.loadAction = MTLLoadActionClear;
+//    renderPass.depthAttachment.storeAction = MTLStoreActionStore;
+//    renderPass.depthAttachment.clearDepth = 1;
 
-        [mRenderEncoder setTriangleFillMode: MTLTriangleFillModeFill];
-        [mRenderEncoder setCullMode:MTLCullModeNone];
-        [mRenderEncoder setFrontFacingWinding: MTLWindingClockwise];
-    }
+    mCurrentDrawable = drawable;
+    mCurrentRenderPass = renderPassDescriptor;
 
-    ImGui_ImplMetal_NewFrame(renderPassDescriptor);
+    ImGui_ImplMetal_NewFrame(mCurrentRenderPass);
 }
 
 void Metal_RenderDrawData(ImDrawData* draw_data) {
-    ImGui_ImplMetal_RenderDrawData(draw_data, mCommandBuffer, mRenderEncoder);
+    id<MTLCommandBuffer> commandBuffer = [mCommandQueue commandBuffer];
+    id <MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:mCurrentRenderPass];
+    ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, commandEncoder);
 
-    [mRenderEncoder endEncoding];
+    [commandEncoder endEncoding];
 }
 
 // MARK: - Metal Graphics Rendering API
@@ -215,6 +216,8 @@ void Metal_RenderDrawData(ImDrawData* draw_data) {
 static void gfx_metal_init(void) {
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
     layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+
+    mCommandQueue = [mDevice newCommandQueue];
 }
 
 static const char* gfx_metal_get_name() {
@@ -606,34 +609,20 @@ static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint3
 }
 
 static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) {
-    MTLDepthStencilDescriptor* depthDescriptor = [MTLDepthStencilDescriptor new];
-    [depthDescriptor setDepthWriteEnabled: depth_test || depth_mask ? YES : NO];
-    [depthDescriptor setDepthCompareFunction: depth_test ? MTLCompareFunctionLess : MTLCompareFunctionAlways];
-
-    id<MTLDepthStencilState> depthStencilState = [mDevice newDepthStencilStateWithDescriptor: depthDescriptor];
-    [mRenderEncoder setDepthStencilState:depthStencilState];
+    metal_ctx.depth_test_and_mask = (depth_test ? 1 : 0) | (depth_mask ? 2 : 0);
 }
 
 static void gfx_metal_set_zmode_decal(bool zmode_decal) {
-    if (zmode_decal) {
-        // glPolygonOffset(-2, -2);
-        // glEnable(GL_POLYGON_OFFSET_FILL);
-        [mRenderEncoder setDepthBias:0 slopeScale:-2 clamp:0];
-    } else {
-        // glPolygonOffset(0, 0);
-        // glDisable(GL_POLYGON_OFFSET_FILL);
-        [mRenderEncoder setDepthBias:0 slopeScale:0 clamp:0];
-    }
+    metal_ctx.decal_mode = zmode_decal;
 }
 
 static void gfx_metal_set_viewport(int x, int y, int width, int height) {
-    // TODO: maybe we have to invert the y?
-    [mRenderEncoder setViewport:(MTLViewport){x, y, width, height, 0.0, 1.0 }];
+    metal_ctx.viewport = { x, y, width, height, 0, 1 };
 }
 
 static void gfx_metal_set_scissor(int x, int y, int width, int height) {
     // TODO: maybe we have to invert the y?
-    [mRenderEncoder setScissorRect:(MTLScissorRect){ x, y, width, height }];
+    metal_ctx.scissor = { x, y, width, height };
 }
 
 static void gfx_metal_set_use_alpha(bool use_alpha) {
@@ -641,27 +630,48 @@ static void gfx_metal_set_use_alpha(bool use_alpha) {
 }
 
 static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
-    // TODO: implement
+    if (!frameUniformBuffer) {
+        frameUniformBuffer = [mDevice newBufferWithLength:sizeof(FrameUniforms) options:MTLResourceOptionCPUCacheModeDefault];
+    }
+
+    memcpy(frameUniformBuffer.contents, &metal_ctx.frame_uniforms, sizeof(FrameUniforms));
+
+    id<MTLCommandBuffer> commandBuffer = [mCommandQueue commandBuffer];
+    id<MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:mCurrentRenderPass];
 
     id<MTLBuffer> vertexBuffer = [mDevice newBufferWithLength:buf_vbo_len * sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
     [vertexBuffer setLabel:@"VBO"];
     memcpy(vertexBuffer.contents, buf_vbo, sizeof(float) * buf_vbo_len);
 
-    [mRenderEncoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
-    [mRenderEncoder setFragmentBuffer:frameUniformBuffer offset:0 atIndex:0];
+    [commandEncoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
+    [commandEncoder setFragmentBuffer:frameUniformBuffer offset:0 atIndex:0];
 
     for (int i = 0; i < 2; i++) {
         if (metal_ctx.shader_program->used_textures[i]) {
-            [mRenderEncoder setFragmentTexture:metal_ctx.textures[i].texture atIndex:i];
-            [mRenderEncoder setFragmentSamplerState:metal_ctx.textures[i].sampler atIndex:i];
+            [commandEncoder setFragmentTexture:metal_ctx.textures[i].texture atIndex:i];
+            [commandEncoder setFragmentSamplerState:metal_ctx.textures[i].sampler atIndex:i];
         }
     }
 
-    [mRenderEncoder setRenderPipelineState:mPipelineState];
-    [mRenderEncoder setCullMode:MTLCullModeBack];
-    [mRenderEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
+    [commandEncoder setRenderPipelineState:mPipelineState];
+    [commandEncoder setTriangleFillMode:MTLTriangleFillModeFill];
+    [commandEncoder setCullMode:MTLCullModeNone];
+    [commandEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
+    [commandEncoder setViewport:metal_ctx.viewport];
+    [commandEncoder setScissorRect:metal_ctx.scissor];
+    [commandEncoder setDepthBias:0 slopeScale:metal_ctx.decal_mode ? -2 : 0 clamp:0];
 
-    [mRenderEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:buf_vbo_num_tris * 3];
+    MTLDepthStencilDescriptor* depthDescriptor = [MTLDepthStencilDescriptor new];
+    [depthDescriptor setDepthWriteEnabled: metal_ctx.depth_test_and_mask ? YES : NO];
+    [depthDescriptor setDepthCompareFunction: metal_ctx.depth_test_and_mask ? MTLCompareFunctionLess : MTLCompareFunctionAlways];
+
+    id<MTLDepthStencilState> depthStencilState = [mDevice newDepthStencilStateWithDescriptor: depthDescriptor];
+    [commandEncoder setDepthStencilState:depthStencilState];
+
+    [commandEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:buf_vbo_num_tris * 3];
+
+    [commandEncoder endEncoding];
+    [commandBuffer commit];
 }
 
 static void gfx_metal_on_resize(void) {
@@ -673,9 +683,9 @@ static void gfx_metal_start_frame(void) {
 }
 
 void gfx_metal_end_frame(void) {
-    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
-    [mCommandBuffer presentDrawable: layer.nextDrawable];
-    [mCommandBuffer commit];
+    id<MTLCommandBuffer> commandBuffer = [mCommandQueue commandBuffer];
+    [commandBuffer presentDrawable:mCurrentDrawable];
+    [commandBuffer commit];
 }
 
 static void gfx_metal_finish_render(void) {
@@ -683,14 +693,7 @@ static void gfx_metal_finish_render(void) {
 }
 
 int gfx_metal_create_framebuffer(void) {
-    // Create Vertex Buffer
-
-    //    mVertexBuffer = [mDevice newBufferWithLength:sizeof(Vertex) * 3
-    //                                         options:MTLResourceOptionCPUCacheModeDefault];
-    //    [mVertexBuffer setLabel:@"VBO"];
-    //    memcpy(mVertexBuffer.contents, mVertexBufferData, sizeof(Vertex) * 3)
-
-    
+    // TODO: implement
 }
 
 static void gfx_metal_update_framebuffer_parameters(int fb_id, uint32_t width, uint32_t height, uint32_t msaa_level, bool opengl_invert_y, bool render_target, bool has_depth_buffer, bool can_extract_depth) {
@@ -702,12 +705,6 @@ void gfx_metal_start_draw_to_framebuffer(int fb_id, float noise_scale) {
     if (noise_scale != 0.0f) {
         metal_ctx.frame_uniforms.noiseScale = 1.0f / noise_scale;
     }
-
-    if (!frameUniformBuffer) {
-        frameUniformBuffer = [mDevice newBufferWithLength:sizeof(FrameUniforms) options:MTLResourceOptionCPUCacheModeDefault];
-    }
-
-    memcpy(frameUniformBuffer.contents, &metal_ctx.frame_uniforms, sizeof(FrameUniforms));
 }
 
 void gfx_metal_clear_framebuffer(void) {
