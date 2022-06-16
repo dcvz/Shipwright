@@ -29,7 +29,6 @@ static id<MTLCommandBuffer> mCommandBuffer;
 static id <MTLRenderCommandEncoder> mRenderEncoder;
 
 static id<MTLBuffer> frameUniformBuffer;
-static id<MTLBuffer> drawUniformBuffer;
 
 struct ShaderProgramMetal {
     uint8_t num_inputs;
@@ -55,14 +54,101 @@ static struct {
     FilteringMode current_filter_mode = THREE_POINT;
 
     FrameUniforms frame_uniforms;
-    DrawUniforms draw_uniforms;
 } metal_ctx;
 
 // MARK: - Helpers
 
+static void append_str(char *buf, size_t *len, const char *str) {
+    while (*str != '\0') buf[(*len)++] = *str++;
+}
+
 static void append_line(char *buf, size_t *len, const char *str) {
     while (*str != '\0') buf[(*len)++] = *str++;
     buf[(*len)++] = '\n';
+}
+
+static const char *shader_item_to_str(uint32_t item, bool with_alpha, bool only_alpha, bool inputs_have_alpha, bool hint_single_element) {
+    if (!only_alpha) {
+        switch (item) {
+            case SHADER_0:
+                return with_alpha ? "float4(0.0, 0.0, 0.0, 0.0)" : "float3(0.0, 0.0, 0.0)";
+            case SHADER_1:
+                return with_alpha ? "float4(1.0, 1.0, 1.0, 1.0)" : "float3(1.0, 1.0, 1.0)";
+            case SHADER_INPUT_1:
+                return with_alpha || !inputs_have_alpha ? "in.input1" : "in.input1.xyz";
+            case SHADER_INPUT_2:
+                return with_alpha || !inputs_have_alpha ? "in.input2" : "in.input2.xyz";
+            case SHADER_INPUT_3:
+                return with_alpha || !inputs_have_alpha ? "in.input3" : "in.input3.xyz";
+            case SHADER_INPUT_4:
+                return with_alpha || !inputs_have_alpha ? "in.input4" : "in.input4.xyz";
+            case SHADER_TEXEL0:
+                return with_alpha ? "texVal0" : "texVal0.xyz";
+            case SHADER_TEXEL0A:
+                return hint_single_element ? "texVal0.w" :
+                    (with_alpha ? "float4(texVal0.w, texVal0.w, texVal0.w, texVal0.w)" : "float3(texVal0.w, texVal0.w, texVal0.w)");
+            case SHADER_TEXEL1A:
+                return hint_single_element ? "texVal1.w" :
+                    (with_alpha ? "float4(texVal1.w, texVal1.w, texVal1.w, texVal1.w)" : "float3(texVal1.w, texVal1.w, texVal1.w)");
+            case SHADER_TEXEL1:
+                return with_alpha ? "texVal1" : "texVal1.xyz";
+            case SHADER_COMBINED:
+                return with_alpha ? "texel" : "texel.xyz";
+        }
+    } else {
+        switch (item) {
+            case SHADER_0:
+                return "0.0";
+            case SHADER_1:
+                return "1.0";
+            case SHADER_INPUT_1:
+                return "in.input1.w";
+            case SHADER_INPUT_2:
+                return "in.input2.w";
+            case SHADER_INPUT_3:
+                return "in.input3.w";
+            case SHADER_INPUT_4:
+                return "in.input4.w";
+            case SHADER_TEXEL0:
+                return "texVal0.w";
+            case SHADER_TEXEL0A:
+                return "texVal0.w";
+            case SHADER_TEXEL1A:
+                return "texVal1.w";
+            case SHADER_TEXEL1:
+                return "texVal1.w";
+            case SHADER_COMBINED:
+                return "texel.w";
+        }
+    }
+    return "";
+}
+
+static void append_formula(char *buf, size_t *len, uint8_t c[2][4], bool do_single, bool do_multiply, bool do_mix, bool with_alpha, bool only_alpha, bool opt_alpha) {
+    if (do_single) {
+        append_str(buf, len, shader_item_to_str(c[only_alpha][3], with_alpha, only_alpha, opt_alpha, false));
+    } else if (do_multiply) {
+        append_str(buf, len, shader_item_to_str(c[only_alpha][0], with_alpha, only_alpha, opt_alpha, false));
+        append_str(buf, len, " * ");
+        append_str(buf, len, shader_item_to_str(c[only_alpha][2], with_alpha, only_alpha, opt_alpha, true));
+    } else if (do_mix) {
+        append_str(buf, len, "mix(");
+        append_str(buf, len, shader_item_to_str(c[only_alpha][1], with_alpha, only_alpha, opt_alpha, false));
+        append_str(buf, len, ", ");
+        append_str(buf, len, shader_item_to_str(c[only_alpha][0], with_alpha, only_alpha, opt_alpha, false));
+        append_str(buf, len, ", ");
+        append_str(buf, len, shader_item_to_str(c[only_alpha][2], with_alpha, only_alpha, opt_alpha, true));
+        append_str(buf, len, ")");
+    } else {
+        append_str(buf, len, "(");
+        append_str(buf, len, shader_item_to_str(c[only_alpha][0], with_alpha, only_alpha, opt_alpha, false));
+        append_str(buf, len, " - ");
+        append_str(buf, len, shader_item_to_str(c[only_alpha][1], with_alpha, only_alpha, opt_alpha, false));
+        append_str(buf, len, ") * ");
+        append_str(buf, len, shader_item_to_str(c[only_alpha][2], with_alpha, only_alpha, opt_alpha, true));
+        append_str(buf, len, " + ");
+        append_str(buf, len, shader_item_to_str(c[only_alpha][3], with_alpha, only_alpha, opt_alpha, false));
+    }
 }
 
 // MARK: - ImGui & SDL Wrappers
@@ -283,40 +369,110 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     // end vertex shader
 
     // fragment shader
-    append_line(buf, &len, "float4 fragmentShader(ProjectedVertex in [[stage_in]], constant FrameUniforms &frameUniforms [[buffer(0)]], constant DrawUniforms &textureUniforms [[buffer(1)]], texture2d<float> texture0 [[texture(0)]], texture2d<float> texture1 [[texture(1)]], sampler sampler0 [[sampler(0)]], sampler sampler1 [[sampler(1)]]) {");
+
+    if (metal_ctx.current_filter_mode == THREE_POINT) {
+        append_line(buf, &len, "float4 filter3point(thread const texture2d<float> tex, thread const sampler texSmplr, thread const float2& texCoord, thread const float2& texSize) {");
+        append_line(buf, &len, "    float2 offset = fract((texCoord * texSize) - float2(0.5));");
+        append_line(buf, &len, "    offset -= float2(step(1.0, offset.x + offset.y));");
+        append_line(buf, &len, "    float4 c0 = tex.sample(texSmplr, (texCoord - (offset / texSize)));");
+        append_line(buf, &len, "    float4 c1 = tex.sample(texSmplr, (texCoord - (float2(offset.x - sign(offset.x), offset.y) / texSize)));");
+        append_line(buf, &len, "    float4 c2 = tex.sample(texSmplr, (texCoord - (float2(offset.x, offset.y - sign(offset.y)) / texSize)));");
+        append_line(buf, &len, "    return (c0 + ((c1 - c0) * abs(offset.x))) + ((c2 - c0) * abs(offset.y));");
+        append_line(buf, &len, "}");
+
+
+        append_line(buf, &len, "float4 hookTexture2D(thread const texture2d<float> tex, thread const sampler texSmplr, thread const float2& uv, thread const float2& texSize) {");
+        append_line(buf, &len, "    return filter3point(tex, texSmplr, uv, texSize);");
+        append_line(buf, &len, "}");
+    } else {
+        append_line(buf, &len, "float4 hookTexture2D(thread const texture2d<float> tex, thread const sampler texSmplr, thread const float2& uv, thread const float2& texSize) {");
+        append_line(buf, &len, "   return tex.sample(texSmplr, uv);");
+        append_line(buf, &len, "}");
+    }
+
+    append_str(buf, &len, "fragment float4 fragmentShader(ProjectedVertex in [[stage_in]], constant FrameUniforms &frameUniforms [[buffer(0)]]");
+
+    if (cc_features.used_textures[0]) {
+        append_str(buf, &len, ", texture2d<float> uTex0 [[texture(0)]], sampler uTex0Smplr [[sampler(0)]]");
+    }
+    if (cc_features.used_textures[1]) {
+        append_str(buf, &len, ", texture2d<float> uTex1 [[texture(1)]], sampler uTex1Smplr [[sampler(1)]]");
+    }
+    append_str(buf, &len, ") {");
 
     for (int i = 0; i < 2; i++) {
         if (cc_features.used_textures[i]) {
-            len += sprintf(buf + len, "    float2 texCoord%d = in.texCoord%d;\n", i, i);
             bool s = cc_features.clamp[i][0], t = cc_features.clamp[i][1];
-            if (!s && !t) {}
-            else {
-                len += sprintf(buf + len, "    const auto texSize%d = ushort2(texture%d.get_width(), texture%d.get_height());\n", i, i, i);
-                if (s && t) {
-                    len += sprintf(buf + len, "    texCoord%d = clamp(texCoord%d, 0.5 / texSize%d, float2(in.texClampS%d, in.texClampT%d));\n", i, i, i, i, i);
-                } else if (s) {
-                    len += sprintf(buf + len, "    float2(clamp(texCoord%d.x, 0.5 / texSize%d.x, in.texClampS%d), texCoord%d.y);\n", i, i, i, i);
-                } else {
-                    len += sprintf(buf + len, "    texCoord%d = float2(texCoord%d.x, clamp(texCoord%d.y, 0.5 / texSize%d.y, in.texClampT%d));\n", i, i, i, i, i);
-                }
-            }
-            if (metal_ctx.current_filter_mode == THREE_POINT) {
 
+            len += sprintf(buf + len, "    float2 texSize%d = float2(int2(uTex%d.get_width(), uTex%d.get_height()));\n", i, i, i);
+
+            if (!s && !t) {
+                len += sprintf(buf + len, "    float4 texVal%d = hookTexture2D(uTex%d, uTex%dSmplr, in.texCoord%d, texSize%d);\n", i, i, i, i, i);
             } else {
-                len += sprintf(buf + len, "    float4 texVal%d = texture%d.sample(sampler%d, texCoord%d);\n", i, i, i, i);
+                if (s && t) {
+                    len += sprintf(buf + len, "    float2 uv = fast::clamp(in.texCoord%d, float2(0.5) / texSize%d, float2(in.texClampS%d, in.texClampT%d));\n", i, i, i, i);
+                    len += sprintf(buf + len, "    float4 texVal%d = hookTexture2D(uTex%d, uTex%dSmplr, uv, texSize%d);\n", i, i, i, i);
+                } else if (s) {
+                    len += sprintf(buf + len, "    float2 uv = float2(fast::clamp(in.texCoord%d.x, 0.5 / texSize%d.x, in.texClampS%d), in.texCoord%d.y);\n", i, i, i, i);
+                    len += sprintf(buf + len, "    float4 texVal%d = hookTexture2D(uTex%d, uTex%dSmplr, uv, texSize%d);\n", i, i, i, i);
+                } else {
+                    len += sprintf(buf + len, "    float2 uv = float2(in.texCoord%d.x, fast::clamp(in.texCoord%d.y, 0.5 / texSize%d.y, in.texClampT%d));\n", i, i, i, i);
+                    len += sprintf(buf + len, "    float4 texVal%d = hookTexture2D(uTex%d, uTex%dSmplr, uv, texSize%d);\n", i, i, i, i);
+                }
             }
         }
     }
 
+    append_line(buf, &len, cc_features.opt_alpha ? "    float4 texel;" : "float3 texel;");
+    for (int c = 0; c < (cc_features.opt_2cyc ? 2 : 1); c++) {
+        append_str(buf, &len, "     texel = ");
+        if (!cc_features.color_alpha_same[c] && cc_features.opt_alpha) {
+            append_str(buf, &len, "float4(");
+            append_formula(buf, &len, cc_features.c[c], cc_features.do_single[c][0], cc_features.do_multiply[c][0], cc_features.do_mix[c][0], false, false, true);
+            append_str(buf, &len, ", ");
+            append_formula(buf, &len, cc_features.c[c], cc_features.do_single[c][1], cc_features.do_multiply[c][1], cc_features.do_mix[c][1], true, true, true);
+            append_str(buf, &len, ")");
+        } else {
+            append_formula(buf, &len, cc_features.c[c], cc_features.do_single[c][0], cc_features.do_multiply[c][0], cc_features.do_mix[c][0], cc_features.opt_alpha, false, cc_features.opt_alpha);
+        }
+        append_line(buf, &len, ";");
+    }
 
+    if (cc_features.opt_fog) {
+        if (cc_features.opt_alpha) {
+            append_line(buf, &len, "    texel = float4(mix(texel.xyz, in.fog.xyz, in.fog.w), texel.w);");
+        } else {
+            append_line(buf, &len, "    texel = mix(texel, in.fog.xyz, in.fog.w);");
+        }
+    }
+
+    if (cc_features.opt_texture_edge && cc_features.opt_alpha) {
+        append_line(buf, &len, "    if (texel.w > 0.19) texel.w = 1.0; else discard_fragment();");
+    }
+
+    if (cc_features.opt_alpha && cc_features.opt_noise) {
+        append_line(buf, &len,     "texel.w *= floor(fast::clamp(random(float3(floor(in.position.xy * frameUniforms.noise_scale), float(frameUniforms.noise_frame))) + texel.w, 0.0, 1.0));");
+    }
+
+    if (cc_features.opt_grayscale) {
+        append_line(buf, &len, "    float intensity = ((texel.x + texel.y) + texel.z) / 3.0;");
+        append_line(buf, &len, "    float3 new_texel = in.grayscale.xyz * intensity;");
+        append_line(buf, &len, "    float3 grayscale = mix(texel.xyz, new_texel, float3(in.grayscale.w));");
+        append_line(buf, &len, "    texel = float4(grayscale.x, grayscale.y, grayscale.z, texel.w);");
+    }
 
     if (cc_features.opt_alpha) {
-        // TODO: figure this out
-        append_line(buf, &len, "    return float4(0.0, 0.0, 0.0, 0.0);");
-    } else {
-        // TODO: figure this out
-        append_line(buf, &len, "    return float4(0.0, 0.0, 0.0, 0.0);");
-    }
+       if (cc_features.opt_alpha_threshold) {
+           append_line(buf, &len, "    if (texel.w < 8.0 / 256.0) discard_fragment();");
+       }
+       if (cc_features.opt_invisible) {
+           append_line(buf, &len, "    texel.w = 0.0;");
+       }
+       append_line(buf, &len, "    return texel;");
+   } else {
+       append_line(buf, &len, "    return float4(texel, 1.0);");
+   }
+
     append_line(buf, &len, "}");
     // end fragment shader
 
@@ -493,14 +649,10 @@ static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
 
     [mRenderEncoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
     [mRenderEncoder setFragmentBuffer:frameUniformBuffer offset:0 atIndex:0];
-    [mRenderEncoder setFragmentBuffer:drawUniformBuffer offset:0 atIndex:2];
 
     for (int i = 0; i < 2; i++) {
         if (metal_ctx.shader_program->used_textures[i]) {
             [mRenderEncoder setFragmentTexture:metal_ctx.textures[i].texture atIndex:i];
-
-            // check and handle three point filter?
-
             [mRenderEncoder setFragmentSamplerState:metal_ctx.textures[i].sampler atIndex:i];
         }
     }
@@ -555,12 +707,7 @@ void gfx_metal_start_draw_to_framebuffer(int fb_id, float noise_scale) {
         frameUniformBuffer = [mDevice newBufferWithLength:sizeof(FrameUniforms) options:MTLResourceOptionCPUCacheModeDefault];
     }
 
-    if (!drawUniformBuffer) {
-        drawUniformBuffer = [mDevice newBufferWithLength:sizeof(DrawUniforms) options:MTLResourceOptionCPUCacheModeDefault];
-    }
-
     memcpy(frameUniformBuffer.contents, &metal_ctx.frame_uniforms, sizeof(FrameUniforms));
-    memcpy(drawUniformBuffer.contents, &metal_ctx.draw_uniforms, sizeof(DrawUniforms));
 }
 
 void gfx_metal_clear_framebuffer(void) {

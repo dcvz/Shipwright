@@ -17,11 +17,5 @@ struct FrameUniforms {
     float noiseScale;
 };
 
-struct DrawUniforms {
-    uint16_t width;
-    uint16_t height;
-    bool linearFiltering;
-};
-
 
 #endif
