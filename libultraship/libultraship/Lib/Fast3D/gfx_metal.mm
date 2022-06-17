@@ -20,8 +20,6 @@
 
 #include "gfx_pc.h"
 
-#include <simd/simd.h>
-
 static SDL_Renderer* _renderer;
 static CAMetalLayer* mLayer;
 static id<MTLDevice> mDevice;
@@ -247,6 +245,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
 
     memset(buf, 0, sizeof(buf));
     append_line(buf, &len, "#include <metal_stdlib>");
+    append_line(buf, &len, "#include <simd/simd.h>");
     append_line(buf, &len, "using namespace metal;");
 
     // Uniforms struct
@@ -267,11 +266,6 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
 
     // Vertex struct
     append_line(buf, &len, "struct Vertex {");
-    len += sprintf(buf + len, "    float4 position [[attribute(%d)]];\n", vertexIndex);
-    vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat4;
-    vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
-    vertexDescriptor.attributes[vertexIndex++].offset = 0;
-
     for (int i = 0; i < 2; i++) {
         if (cc_features.used_textures[i]) {
             len += sprintf(buf + len, "    float2 texCoord%d [[attribute(%d)]];\n", i, vertexIndex);
@@ -311,13 +305,15 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         vertexDescriptor.attributes[vertexIndex++].offset = num_floats * sizeof(float);
         num_floats += cc_features.opt_alpha ? 4 : 3;
     }
+    len += sprintf(buf + len, "    float4 position [[attribute(%d)]];\n", vertexIndex);
+    vertexDescriptor.attributes[vertexIndex].format = MTLVertexFormatFloat4;
+    vertexDescriptor.attributes[vertexIndex].bufferIndex = 0;
+    vertexDescriptor.attributes[vertexIndex++].offset = 0;
     append_line(buf, &len, "};");
     // end vertex struct
 
     // fragment output struct
     append_line(buf, &len, "struct ProjectedVertex {");
-    append_line(buf, &len, "    float4 position [[position]];");
-
     for (int i = 0; i < 2; i++) {
         if (cc_features.used_textures[i]) {
             len += sprintf(buf + len, "    float2 texCoord%d;\n", i);
@@ -338,6 +334,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     for (int i = 0; i < cc_features.num_inputs; i++) {
         len += sprintf(buf + len, "    float%d input%d;",  cc_features.opt_alpha ? 4 : 3, i + 1);
     }
+    append_line(buf, &len, "    float4 position [[position]];");
     append_line(buf, &len, "};");
     // end fragment output struct
 
