@@ -207,6 +207,7 @@ void Metal_RenderDrawData(ImDrawData* draw_data) {
     ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, commandEncoder);
 
     [commandEncoder endEncoding];
+    [commandBuffer commit];
 }
 
 // MARK: - Metal Graphics Rendering API
