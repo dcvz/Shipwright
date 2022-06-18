@@ -258,12 +258,12 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 }
 
 - (void)imguiDrawData:(ImDrawData *)draw_data {
-//    id<MTLCommandBuffer> commandBuffer = _commandQueue.commandBuffer;
-//    id <MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
-//    ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, commandEncoder);
-//
-//    [commandEncoder endEncoding];
-//    [commandBuffer commit];
+    //    id<MTLCommandBuffer> commandBuffer = _commandQueue.commandBuffer;
+    //    id <MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
+    //    ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, commandEncoder);
+    //
+    //    [commandEncoder endEncoding];
+    //    [commandBuffer commit];
 }
 
 - (id<MTLRenderPipelineState>)createPipelineStateWithShader:(CCFeatures)features usingFilteringMode:(FilteringMode)filteringMode stride:(size_t*)stride {
@@ -453,9 +453,9 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
         }
     }
 
-    [shaderSource appendNewLineString: features.opt_alpha ? @"float4 texel;" : @"float3 texel;"];
+    [shaderSource appendNewLineString: features.opt_alpha ? @"    float4 texel;" : @"    float3 texel;"];
     for (int c = 0; c < (features.opt_2cyc ? 2 : 1); c++) {
-        [shaderSource appendString:@"     texel = "];
+        [shaderSource appendString:@"    texel = "];
 
         if (!features.color_alpha_same[c] && features.opt_alpha) {
             [shaderSource appendString:@"float4("];
@@ -514,7 +514,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     NSError* error = nil;
     id <MTLLibrary> library = [_device newLibraryWithSource:shaderSource options:nil error:&error];
 
-    if (!error) {
+    if (error != nil) {
         NSLog(@"Failed to compile shader library, error %@", error);
     }
 
@@ -658,9 +658,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
 
     size_t stride = 0;
 
-    id<MTLRenderPipelineState> pipelineState = [metal_ctx createPipelineStateWithShader:cc_features
-                                                                     usingFilteringMode:state.current_filter_mode
-                                                                                 stride:&stride];
+    id<MTLRenderPipelineState> pipelineState = [metal_ctx createPipelineStateWithShader:cc_features usingFilteringMode:state.current_filter_mode stride:&stride];
 
     if (!pipelineState) {
         // Pipeline State creation could fail if we haven't properly set up our pipeline descriptor.
@@ -670,7 +668,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         NSLog(@"Failed to created pipeline state");
     }
 
-    struct ShaderProgramMetal *prg = &shader_program_pool[std::make_pair(shader_id0, shader_id1)];
+    struct ShaderProgramMetal *prg = &shader_program_pool[make_pair(shader_id0, shader_id1)];
     prg->pipeline = pipelineState;
     prg->used_textures[0] = cc_features.used_textures[0];
     prg->used_textures[1] = cc_features.used_textures[1];
@@ -711,8 +709,6 @@ static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, 
 
     MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:width height:height mipmapped:YES];
 
-    textureDescriptor.usage = MTLTextureUsageShaderRead;
-    textureDescriptor.storageMode = MTLStorageModePrivate;
     textureDescriptor.arrayLength = 1;
     textureDescriptor.mipmapLevelCount = 1;
     textureDescriptor.sampleCount = 1;
@@ -721,7 +717,7 @@ static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, 
 
     MTLRegion region = MTLRegionMake2D(0, 0, width, height);
     NSUInteger bytesPerPixel = 4;
-    [texture_data->texture replaceRegion:region mipmapLevel:1 withBytes:rgba32_buf bytesPerRow:width * bytesPerPixel];
+    [texture_data->texture replaceRegion:region mipmapLevel:0 withBytes:rgba32_buf bytesPerRow:width * bytesPerPixel];
 }
 
 static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint32_t cms, uint32_t cmt) {
@@ -733,10 +729,7 @@ static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint3
     // state before setting the actual one.
     //   [texture_data->sampler release];
 
-    texture_data->sampler = [metal_ctx sampleStateUsingLinearFilter:linear_filter
-                                                      filteringMode:state.current_filter_mode
-                                                                cms:cms
-                                                                cmt:cmt];
+    texture_data->sampler = [metal_ctx sampleStateUsingLinearFilter:linear_filter filteringMode:state.current_filter_mode cms:cms cmt:cmt];
 }
 
 static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) {
@@ -803,8 +796,10 @@ void gfx_metal_resolve_msaa_color_buffer(int fb_id_target, int fb_id_source) {
     // TODO: implement
 }
 
-std::map<std::pair<float, float>, uint16_t> gfx_metal_get_pixel_depth(int fb_id, const std::set<std::pair<float, float>>& coordinates) {
+map<pair<float, float>, uint16_t> gfx_metal_get_pixel_depth(int fb_id, const set<pair<float, float>>& coordinates) {
     // TODO: implement
+    map<pair<float, float>, uint16_t> res;
+    return res;
 }
 
 void *gfx_metal_get_framebuffer_texture_id(int fb_id) {
