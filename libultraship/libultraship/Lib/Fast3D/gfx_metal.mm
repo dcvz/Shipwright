@@ -1,5 +1,3 @@
-#include "gfx_metal.h"
-
 #ifdef ENABLE_METAL
 
 #include <vector>
@@ -32,6 +30,11 @@ static MTLRenderPassDescriptor* mCurrentRenderPass;
 static id<CAMetalDrawable> mCurrentDrawable;
 
 static id<MTLBuffer> frameUniformBuffer;
+
+struct FrameUniforms {
+    int frameCount;
+    float noiseScale;
+};
 
 struct ShaderProgramMetal {
     uint8_t num_inputs;

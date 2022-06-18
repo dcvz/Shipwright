@@ -15,7 +15,9 @@
 #include "SDL_opengl.h"
 #elif __APPLE__
 #include <SDL.h>
+#ifdef ENABLE_METAL
 #include "gfx_metal.h"
+#endif
 #else
 #include <SDL2/SDL.h>
 #define GL_GLEXT_PROTOTYPES 1

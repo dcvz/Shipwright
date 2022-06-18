@@ -1,3 +1,5 @@
+#ifdef ENABLE_METAL
+
 #ifndef GFX_METAL_H
 #define GFX_METAL_H
 
@@ -12,10 +14,5 @@ bool Metal_Init();
 void Metal_NewFrame();
 void Metal_RenderDrawData(ImDrawData* draw_data);
 
-struct FrameUniforms {
-    int frameCount;
-    float noiseScale;
-};
-
-
+#endif
 #endif
