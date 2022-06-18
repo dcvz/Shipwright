@@ -49,9 +49,10 @@ LDFLAGS := -lm -ldl \
   -L../StormLib/build -L../libultraship -lbz2 -pthread -lultraship -lstorm
 
 ifeq ($(UNAME), Darwin)
-  LDFLAGS += $(shell pkg-config --libs glew x11 libpng zlib) $(shell sdl2-config --libs) -framework OpenGL -framework Metal -framework Foundation
+  LDFLAGS += $(shell pkg-config --libs glew libpng zlib) $(shell sdl2-config --libs) -framework OpenGL -framework Metal -framework Foundation
+  INC += $(shell pkg-config --cflags libpng)
 else
-  LDFLAGS += -lpng -lGL -lGLEW -lX11 -lz -lSDL2
+  LDFLAGS += -lpng -lGL -lGLEW -lX11 -lz -lSDL2 -lpulse
 endif
 
 # Use LLD if available. Set LLD=0 to not use it
@@ -69,10 +70,6 @@ ifneq ($(UNAME), Darwin)
   EXPORTERS := -Wl,--whole-archive ../OTRExporter/OTRExporter/OTRExporter.a -Wl,--no-whole-archive
 else
   EXPORTERS := -Wl,-force_load ../OTRExporter/OTRExporter/OTRExporter.a
-  ifeq ($(UNAMEM),arm64)
-    LDFLAGS += $(shell pkg-config --libs libpng)
-    INC += $(shell pkg-config --cflags libpng)
-  endif
 endif
 
 

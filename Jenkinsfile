@@ -8,6 +8,9 @@ pipeline {
     
     stages {
         stage ('Build Windows') {
+            options {
+                timeout(time: 20)
+            }
             environment {
                 MSBUILD='C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Msbuild\\Current\\Bin\\msbuild.exe'
                 CONFIG='Release'
@@ -71,6 +74,9 @@ pipeline {
             }
         }
         stage ('Build Linux') {
+            options {
+                timeout(time: 20)
+            }
             agent {
                 label "SoH-Linux-Builders"
             }
@@ -106,6 +112,40 @@ pipeline {
                 }
                 sh 'sudo docker container stop sohcont'
                 archiveArtifacts artifacts: 'soh-linux.7z', followSymlinks: false, onlyIfSuccessful: true
+            }
+            post {
+                always {
+                    step([$class: 'WsCleanup']) // Clean workspace
+                }
+            }
+        }
+        stage ('Build macOS') {
+            agent {
+                label "SoH-Mac-Builders"
+            }
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: scm.branches,
+                    doGenerateSubmoduleConfigurations: scm.doGenerateSubmoduleConfigurations,
+                    extensions: scm.extensions,
+                    userRemoteConfigs: scm.userRemoteConfigs
+                ])
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    sh '''
+                    cp ../../ZELOOTD.z64 OTRExporter/baserom_non_mq.z64
+
+                    cd soh
+                    make setup -j4 DEBUG=0 CC=gcc-12 CXX=g++-12
+                    make -j4 DEBUG=0 CC=gcc-12 CXX=g++-12
+
+                    make -j4 appbundle
+
+                    mv ../README.md readme.txt
+                    7z a soh-mac.7z soh.app readme.txt
+                    '''
+                }
+                archiveArtifacts artifacts: 'soh/soh-mac.7z', followSymlinks: false, onlyIfSuccessful: true
             }
             post {
                 always {

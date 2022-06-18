@@ -26,6 +26,8 @@ docs/doxygen/
 *.v64
 *.map
 *.dump
+*.app/
+*.icns
 out.txt
 shipofharkinian.ini
 imgui.ini
@@ -407,3 +409,6 @@ cvars.cfg
 
 DebugObj/*
 ReleaseObj/*
+
+# Junk from App Bundle
+appsupport

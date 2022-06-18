@@ -36,8 +36,8 @@ static SDL_GLContext ctx;
 static SDL_Renderer* renderer;
 static int inverted_scancode_table[512];
 static int vsync_enabled = 0;
-static unsigned int window_width = DESIRED_SCREEN_WIDTH;
-static unsigned int window_height = DESIRED_SCREEN_HEIGHT;
+static int window_width = DESIRED_SCREEN_WIDTH;
+static int window_height = DESIRED_SCREEN_HEIGHT;
 static bool fullscreen_state;
 static void (*on_fullscreen_changed_callback)(bool is_now_fullscreen);
 static bool (*on_key_down_callback)(int scancode);
@@ -145,6 +145,13 @@ if (strcmp(renderer_api_name, "Metal") == 0) {
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 #endif
 
+#if defined(__APPLE__)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+#endif
+
 #ifdef _WIN32
     timer = CreateWaitableTimer(nullptr, false, nullptr);
 #endif
@@ -155,7 +162,7 @@ if (strcmp(renderer_api_name, "Metal") == 0) {
     char title[512];
     int len = sprintf(title, "%s (%s - %s)", game_name, "SDL", renderer_api_name);
 
-    Uint32 flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
+    Uint32 flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
 
 #if defined(ENABLE_METAL)
     if (strcmp(renderer_api_name, "Metal") == 0) {
@@ -169,6 +176,7 @@ if (strcmp(renderer_api_name, "Metal") == 0) {
 
     wnd = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
             window_width, window_height, flags);
+    SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
 
     if (start_in_fullscreen) {
         set_fullscreen(true, false);
@@ -282,8 +290,7 @@ static void gfx_sdl_handle_events(void) {
 #endif
             case SDL_WINDOWEVENT:
                 if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
-                    window_width = event.window.data1;
-                    window_height = event.window.data2;
+                    SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
                 }
                 break;
             case SDL_QUIT:

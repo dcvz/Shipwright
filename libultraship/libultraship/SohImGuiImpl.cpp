@@ -55,6 +55,7 @@ bool oldCursorState = true;
     ImGui::PopStyleColor(); \
     ImGui::Separator();
 #define TOGGLE_BTN ImGuiKey_F1
+#define TOGGLE_PAD_BTN ImGuiKey_GamepadBack
 #define HOOK(b) if(b) needs_save = true;
 OSContPad* pads;
 
@@ -68,9 +69,6 @@ namespace SohImGui {
     GameOverlay* overlay = new GameOverlay;
     bool p_open = false;
     bool needs_save = false;
-    std::vector<const char*> CustomTexts;
-    int SelectedLanguage = CVar_GetS32("gLanguages", 0); //Default Language to 0=English 1=German 2=French
-    int SelectedHUD = CVar_GetS32("gHudColors", 1);      //Default colors to Gamecube.
     ImVec4 hearts_colors;
     ImVec4 hearts_dd_colors;
     ImVec4 a_btn_colors;
@@ -101,7 +99,7 @@ namespace SohImGui {
         "gCCHeartsPrim","gDDCCHeartsPrim",
         "gCCABtnPrim","gCCBBtnPrim","gCCCBtnPrim","gCCStartBtnPrim",
         "gCCMagicBorderPrim","gCCMagicPrim","gCCMagicUsePrim",
-        "gCCMinimapPrim","gCCRupeePrim","gCCKeysPrim"        
+        "gCCMinimapPrim","gCCRupeePrim","gCCKeysPrim"
     };
 
     const char* filters[3] = {
@@ -151,7 +149,11 @@ namespace SohImGui {
                 break;
             }
             
+        #if defined(__APPLE__)
+            ImGui_ImplOpenGL3_Init("#version 410 core");
+        #else
             ImGui_ImplOpenGL3_Init("#version 120");
+        #endif
             break;
 
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
@@ -284,8 +286,8 @@ namespace SohImGui {
     }
 
     void LoadRainbowColor() {
-        return;
-        for (uint16_t s=0; s <= sizeof(RainbowColorCvarList); s++) {
+        u8 arrayLength = sizeof(RainbowColorCvarList) / sizeof(*RainbowColorCvarList);
+        for (u8 s = 0; s < arrayLength; s++) {
             std::string cvarName = RainbowColorCvarList[s];
             std::string Cvar_Red = cvarName;
             Cvar_Red += "R";
@@ -309,7 +311,7 @@ namespace SohImGui {
             u8 i = current_hue / 60 + 1;
             u8 a = (-current_hue / 60.0f + i) * 255;
             u8 b = (current_hue / 60.0f + (1 - i)) * 255;
-            
+
             switch (i) {
                 case 1: NewColor.x = 255; NewColor.y = b; NewColor.z = 0; break;
                 case 2: NewColor.x = a; NewColor.y = 255; NewColor.z = 0; break;
@@ -462,6 +464,28 @@ namespace SohImGui {
         }
     }
 
+
+    void EnhancementCombobox(const char* name, const char* ComboArray[], size_t arraySize, uint8_t FirstTimeValue = 0) {
+        if (FirstTimeValue <= 0) {
+            FirstTimeValue = 0;
+        }
+        uint8_t selected = CVar_GetS32(name, FirstTimeValue);
+        uint8_t DefaultValue = selected;
+        std::string comboName = std::string("##") + std::string(name);
+        if (ImGui::BeginCombo(comboName.c_str(), ComboArray[DefaultValue])) {
+            for (uint8_t i = 0; i < arraySize; i++) {
+                if (strlen(ComboArray[i]) > 1) {
+                    if (ImGui::Selectable(ComboArray[i], i == selected)) {
+                        CVar_SetS32(name, i);
+                        selected = i;
+                        needs_save = true;
+                    }
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+
     void EnhancementRadioButton(const char* text, const char* cvarName, int id) {
         /*Usage :
         EnhancementRadioButton("My Visible Name","gMyCVarName", MyID);
@@ -476,7 +500,7 @@ namespace SohImGui {
         std::string make_invisible = "##";
         make_invisible += text;
         make_invisible += cvarName;
-        
+
         int val = CVar_GetS32(cvarName, 0);
         if (ImGui::RadioButton(make_invisible.c_str(), id == val)) {
             CVar_SetS32(cvarName, id);
@@ -559,6 +583,20 @@ namespace SohImGui {
             val = max;
             CVar_SetFloat(cvarName, val);
             needs_save = true;
+        }
+    }
+
+    void EnhancementCombo(const std::string& name, const char* cvarName, const std::vector<std::string>& items, int defaultValue) {
+      
+        if (ImGui::BeginCombo(name.c_str(), items[static_cast<int>(CVar_GetS32(cvarName, defaultValue))].c_str())) {
+            for (int settingIndex = 0; settingIndex < (int) items.size(); settingIndex++) {
+                if (ImGui::Selectable(items[settingIndex].c_str())) {
+                    CVar_SetS32(cvarName, settingIndex);
+                    needs_save = true;
+
+                }
+            }
+            ImGui::EndCombo();
         }
     }
 
@@ -690,7 +728,7 @@ namespace SohImGui {
         const std::shared_ptr<Window> wnd = GlobalCtx2::GetInstance()->GetWindow();
         ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBackground |
             ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoResize;
+            ImGuiWindowFlags_NoResize;
         if (CVar_GetS32("gOpenMenuBar", 0)) window_flags |= ImGuiWindowFlags_MenuBar;
 
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -718,7 +756,9 @@ namespace SohImGui {
 
         ImGui::DockSpace(dockId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
 
-        if (ImGui::IsKeyPressed(TOGGLE_BTN)) {
+        ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; 
+        if ((ImGui::IsKeyPressed(TOGGLE_BTN)) || (ImGui::IsKeyDown(TOGGLE_PAD_BTN))) {
             bool menu_bar = CVar_GetS32("gOpenMenuBar", 0);
             CVar_SetS32("gOpenMenuBar", !menu_bar);
             needs_save = true;
@@ -748,7 +788,22 @@ namespace SohImGui {
             }
 
             if (ImGui::BeginMenu("Controller"))
-            {
+	    {
+                EnhancementCheckbox("D-pad Support on Pause and File Select", "gDpadPauseName");
+                EnhancementCheckbox("D-pad Support in Ocarina and Text Choice", "gDpadOcarinaText");
+                EnhancementCheckbox("D-pad Support for Browsing Shop Items", "gDpadShop");
+
+		ImGui::Separator();
+
+                EnhancementCheckbox("Show Inputs", "gInputEnabled");
+                Tooltip("Shows currently pressed inputs on the bottom right of the screen");
+                EnhancementCheckbox("Rumble Enabled", "gRumbleEnabled");
+
+                EnhancementSliderFloat("Input Scale: %.1f", "##Input", "gInputScale", 1.0f, 3.0f, "", 1.0f, false);
+                Tooltip("Sets the on screen size of the displayed inputs from Show Inputs");  
+
+		ImGui::Separator();  
+		    
                 for (const auto& [i, controllers] : Ship::Window::Controllers)
                 {
                     bool hasPad = std::find_if(controllers.begin(), controllers.end(), [](const auto& c) {
@@ -777,19 +832,6 @@ namespace SohImGui {
                         }
                         ImGui::Separator();
                 }
-
-                EnhancementCheckbox("Show Inputs", "gInputEnabled");
-                Tooltip("Shows currently pressed inputs on the bottom right of the screen");
-                EnhancementCheckbox("Rumble Enabled", "gRumbleEnabled");
-
-                EnhancementSliderFloat("Input Scale: %.1f", "##Input", "gInputScale", 1.0f, 3.0f, "", 1.0f, false);
-                Tooltip("Sets the on screen size of the displayed inputs from Show Inputs");
-
-                ImGui::Separator();
-
-                EnhancementCheckbox("D-pad Support on Pause and File Select", "gDpadPauseName");
-                EnhancementCheckbox("D-pad Support in Ocarina and Text Choice", "gDpadOcarinaText");
-                EnhancementCheckbox("D-pad Support for Browsing Shop Items", "gDpadShop");
 
                 ImGui::EndMenu();
             }
@@ -833,20 +875,9 @@ namespace SohImGui {
 
                 EXPERIMENTAL();
                 ImGui::Text("Texture Filter (Needs reload)");
+                EnhancementCombobox("gTextureFilter", filters, 3, 0);
                 GfxRenderingAPI* gapi = gfx_get_current_rendering_api();
-                if (ImGui::BeginCombo("##filters", filters[gapi->get_texture_filter()])) {
-                    for (int fId = 0; fId <= FilteringMode::NONE; fId++) {
-                        if (ImGui::Selectable(filters[fId], fId == gapi->get_texture_filter())) {
-                            INFO("New Filter: %s", filters[fId]);
-                            gapi->set_texture_filter((FilteringMode)fId);
-
-                            CVar_SetS32("gTextureFilter", (int)fId);
-                            needs_save = true;
-                        }
-
-                    }
-                    ImGui::EndCombo();
-                }
+                gapi->set_texture_filter((FilteringMode)CVar_GetS32("gTextureFilter", 0));
                 overlay->DrawSettings();
                 ImGui::EndMenu();
             }
@@ -864,6 +895,7 @@ namespace SohImGui {
                 {
                     EnhancementSliderInt("Text Speed: %dx", "##TEXTSPEED", "gTextSpeed", 1, 5, "");
                     EnhancementSliderInt("King Zora Speed: %dx", "##WEEPSPEED", "gMweepSpeed", 1, 5, "");
+                    EnhancementSliderInt("Vine/Ladder Climb speed +%d", "##CLIMBSPEED", "gClimbSpeed", 0, 12, "");
 
                     EnhancementCheckbox("Skip Text", "gSkipText");
                     Tooltip("Holding down B skips text");
@@ -875,13 +907,22 @@ namespace SohImGui {
                     Tooltip("Displays an icon and plays a sound when Stone of Agony should be activated, for those without rumble");
                     EnhancementCheckbox("Faster Block Push", "gFasterBlockPush");
                     EnhancementCheckbox("Assignable Tunics and Boots", "gAssignableTunicsAndBoots");
-                    Tooltip("Allows equiping the tunic and boots to c-buttons");
+                    Tooltip("Allows equipping the tunic and boots to c-buttons");
                     EnhancementCheckbox("MM Bunny Hood", "gMMBunnyHood");
                     Tooltip("Wearing the Bunny Hood grants a speed increase like in Majora's Mask");
-                    EnhancementCheckbox("Better Owl", "gBetterOwl");
-                    Tooltip("The default response to Kaepora Gaebora is always that you understood what he said");
+                    EnhancementCheckbox("No Forced Navi", "gNoForcedNavi");
+                    Tooltip("Prevent forced Navi conversations");
+                    EnhancementCheckbox("No Skulltula Freeze", "gSkulltulaFreeze");
+                    Tooltip("Stops the game from freezing the player when picking up Gold Skulltulas");
                     EnhancementCheckbox("Disable Navi Call Audio", "gDisableNaviCallAudio");
                     Tooltip("Disables the voice audio when Navi calls you");
+                    EnhancementCheckbox("Fast Chests", "gFastChests");
+                    Tooltip("Kick open every chest");
+                    EnhancementCheckbox("Better Owl", "gBetterOwl");
+                    Tooltip("The default response to Kaepora Gaebora is always that you understood what he said");
+                    EnhancementCheckbox("Link's Cow in Both Time Periods", "gCowOfTime");
+                    Tooltip("Allows the Lon Lon Ranch obstacle course reward to be shared across time periods");
+                    EnhancementCheckbox("Enable passage of time on file select", "gTimeFlowFileSelect");
                     ImGui::EndMenu();
                 }
 
@@ -889,13 +930,13 @@ namespace SohImGui {
                 {
                     if (ImGui::BeginMenu("Animated Link in Pause Menu")) {
                         ImGui::Text("Rotation");
-                        EnhancementRadioButton("Disabled", "gPauseLiveRotation", 0);
-                        EnhancementRadioButton("Rotate Link with D-pad", "gPauseLiveRotation", 1);
+                        EnhancementRadioButton("Disabled", "gPauseLiveLinkRotation", 0);
+                        EnhancementRadioButton("Rotate Link with D-pad", "gPauseLiveLinkRotation", 1);
                         Tooltip("Allow you to rotate Link on the Equipment menu with the DPAD\nUse DPAD-Up or DPAD-Down to reset Link's rotation");
-                        EnhancementRadioButton("Rotate Link with C-buttons", "gPauseLiveRotation", 2);
+                        EnhancementRadioButton("Rotate Link with C-buttons", "gPauseLiveLinkRotation", 2);
                         Tooltip("Allow you to rotate Link on the Equipment menu with the C-buttons\nUse C-Up or C-Down to reset Link's rotation");
 
-                        if (CVar_GetS32("gPauseLiveRotation", 0) != 0) {
+                        if (CVar_GetS32("gPauseLiveLinkRotation", 0) != 0) {
                             EnhancementSliderInt("Rotation Speed: %d", "##MinRotationSpeed", "gPauseLiveLinkRotationSpeed", 1, 20, "");
                         }
                         ImGui::Separator();
@@ -920,15 +961,17 @@ namespace SohImGui {
                         EnhancementRadioButton("Random", "gPauseLiveLink", 15);
                         Tooltip("Randomize the animation played each time you open the menu");
                         EnhancementRadioButton("Random cycle", "gPauseLiveLink", 16);
-                        Tooltip("andomize the animation played on hte menu after a certain time");
+                        Tooltip("Randomize the animation played on the menu after a certain time");
                         if (CVar_GetS32("gPauseLiveLink", 0) >= 16) {
                             EnhancementSliderInt("Frame to wait: %d", "##MinFrameCount", "gMinFrameCount", 1, 1000, "");
                         }
-                        
+
                         ImGui::EndMenu();
                     }
                     EnhancementCheckbox("N64 Mode", "gN64Mode");
                     Tooltip("Sets aspect ratio to 4:3 and lowers resolution to 240p, the N64's native resolution");
+                    EnhancementCheckbox("Disable Black Bar Letterboxes", "gDisableBlackBars");
+                    Tooltip("Disables Black Bar Letterboxes during cutscenes and Z-targeting\nNote: there may be minor visual glitches that were covered up by the black bars\nPlease disable this setting before reporting a bug");
                     EnhancementCheckbox("Enable 3D Dropped items", "gNewDrops");
                     EnhancementCheckbox("Dynamic Wallet Icon", "gDynamicWalletIcon");
                     Tooltip("Changes the rupee in the wallet icon to match the wallet size you currently have");
@@ -942,12 +985,28 @@ namespace SohImGui {
                 {
                     EnhancementCheckbox("Fix L&R Pause menu", "gUniformLR");
                     Tooltip("Makes the L and R buttons in the pause menu the same color");
+                    EnhancementCheckbox("Fix L&Z Page switch in Pause menu", "gNGCKaleidoSwitcher");
+                    Tooltip("Enabling it make L and R be your page switch like on Gamecube\nZ become the button to open Debug Menu");
                     EnhancementCheckbox("Fix Dungeon entrances", "gFixDungeonMinimapIcon");
                     Tooltip("Show dungeon entrances icon only when it should be");
                     EnhancementCheckbox("Fix Two Handed idle animations", "gTwoHandedIdle");
                     Tooltip("Makes two handed idle animation play, a seemingly finished animation that was disabled on accident in the original game");
+                    EnhancementCheckbox("Fix the Gravedigging Tour Glitch", "gGravediggingTourFix");
+                    Tooltip("Fixes a bug where you can permanently miss the Gravedigging Tour Heart Piece");
                     EnhancementCheckbox("Fix Deku Nut upgrade", "gDekuNutUpgradeFix");
                     Tooltip("Prevents the Forest Stage Deku Nut upgrade from becoming unobtainable after receiving the Poacher's Saw");
+                    EnhancementCheckbox("Fix Navi text HUD position", "gNaviTextFix");
+                    Tooltip("Correctly centers the Navi text prompt on the HUD's C-Up button");
+
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Restoration"))
+                {
+                    EnhancementCheckbox("Red Ganon blood", "gRedGanonBlood");
+                    Tooltip("Restore the original red blood from NTSC 1.0/1.1. Disable for green blood");
+                    EnhancementCheckbox("Fish while hovering", "gHoverFishing");
+                    Tooltip("Restore a bug from NTSC 1.0 that allows casting the Fishing Rod while using the Hover Boots");
 
                     ImGui::EndMenu();
                 }
@@ -996,18 +1055,26 @@ namespace SohImGui {
                 }
                 EnhancementCheckbox("Disable LOD", "gDisableLOD");
                 Tooltip("Turns off the level of detail setting, making models always use their higher poly variants");
+                EnhancementCheckbox("Disable Draw Distance", "gDisableDrawDistance");
+                Tooltip("Turns off the objects draw distance, making objects being visible from a longer range");
+                if (CVar_GetS32("gDisableDrawDistance", 0) == 0) {
+                    CVar_SetS32("gDisableKokiriDrawDistance", 0);
+                } else if (CVar_GetS32("gDisableDrawDistance", 0) == 1) {
+                    EnhancementCheckbox("Kokiri Draw Distance", "gDisableKokiriDrawDistance");
+                    Tooltip("Kokiris are mystical being that appear from a certain distance\nEnable this will remove their draw distance\nNeeds to reload the map to take effect");
+                }
 
                 ImGui::EndMenu();
             }
 
             if (ImGui::BeginMenu("Cosmetics"))  {
-                EnhancementCheckbox("Cosmetics editor", "gCosmticsEditor");
+                EnhancementCheckbox("Cosmetics editor", "gCosmeticEditor");
                 Tooltip("Edit Navi and Link's Tunics color.");
                 EnhancementCheckbox("HUD Margins editor", "gUseMargins");
                 EnhancementRadioButton("N64 interface", "gHudColors", 0);
                 Tooltip("Change interface color to N64 style.");
-                EnhancementRadioButton("Gamecube interface", "gHudColors", 1);
-                Tooltip("Change interface color to Gamecube style.");
+                EnhancementRadioButton("GameCube interface", "gHudColors", 1);
+                Tooltip("Change interface color to GameCube style.");
                 EnhancementRadioButton("Custom interface", "gHudColors", 2);
                 Tooltip("Change interface color to your own made style.");
                 if (CVar_GetS32("gHudColors", 1) == 2) {
@@ -1043,6 +1110,12 @@ namespace SohImGui {
                 Tooltip("Allows you to use any item at any location");
                 EnhancementCheckbox("Freeze Time", "gFreezeTime");
                 Tooltip("Freezes the time of day");
+                EnhancementCheckbox("Drops Don't Despawn", "gDropsDontDie");
+                Tooltip("Drops from enemies, grass, etc. don't disappear after a set amount of time");
+                EnhancementCheckbox("Fireproof Deku Shield", "gFireproofDekuShield");
+                Tooltip("Prevents the Deku Shield from burning on contact with fire");
+                EnhancementCheckbox("Shield with Two-Handed Weapons", "gShieldTwoHanded");
+                Tooltip("Allows Link to shield normally with two-handed swords and the Megaton Hammer");
 
                 ImGui::EndMenu();
             }
@@ -1056,7 +1129,7 @@ namespace SohImGui {
                 if (CVar_GetS32("gSkipLogoTitle",0)) {
                     EnhancementSliderInt("Loading %d", "##SaveFileID", "gSaveFileID", 0, 4, "");
                 }
-		ImGui::Separator();
+                ImGui::Separator();
                 EnhancementCheckbox("Stats", "gStatsEnabled");
                 Tooltip("Shows the stats window, with your FPS and frametimes, and the OS you're playing on");
                 EnhancementCheckbox("Console", "gConsoleEnabled");
@@ -1067,14 +1140,15 @@ namespace SohImGui {
             }
 
             bool Margins_isOpen = CVar_GetS32("gUseMargins", 0);
-            bool Cosmetics_isOpen = CVar_GetS32("gCosmticsEditor", 0);
+            bool Cosmetics_isOpen = CVar_GetS32("gCosmeticEditor", 0);
             bool Interface_isOpen = CVar_GetS32("gColorsEditor", 0);
 
             if (Margins_isOpen) {
                 if (!Margins_isOpen) {
+                    CVar_SetS32("gHUDMargins", 0);
                     return;
                 }
-                ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+                ImGui::SetNextWindowSize(ImVec2(520, 600), ImGuiCond_FirstUseEver);
                 ImGui::Begin("Margins Editor", nullptr, ImGuiWindowFlags_NoFocusOnAppearing);
                 if (ImGui::BeginTabBar("Margins Editor", ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)) {
                     if (ImGui::BeginTabItem("Interface margins")) {
@@ -1088,14 +1162,14 @@ namespace SohImGui {
                     }
                     ImGui::EndTabBar();
                 }
-                ImGui::PopStyleColor();
                 ImGui::End();
             }
             if (Cosmetics_isOpen) {
                 if (!Cosmetics_isOpen) {
+                    CVar_SetS32("gCosmeticEditor", 0);
                     return;
                 }
-                ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+                ImGui::SetNextWindowSize(ImVec2(500, 627), ImGuiCond_FirstUseEver);
                 ImGui::Begin("Cosmetics Editor", nullptr, ImGuiWindowFlags_NoFocusOnAppearing);
                 if (ImGui::BeginTabBar("Cosmetics Editor", ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)) {
                     if (ImGui::BeginTabItem("Navi")) {
@@ -1103,22 +1177,22 @@ namespace SohImGui {
                         Tooltip("Enable/Disable custom Navi's colors. \nIf disabled you will have original colors for Navi.\nColors are refreshed when Navi goes back in your pockets.");
                         EnhancementColor("Navi Idle Inner", "gNavi_Idle_Inner_", navi_idle_i_col, ImVec4(255,255,255,255), false);
                         Tooltip("Inner color for Navi (idle flying around)");
-                        EnhancementColor("Navi Idle Outer", "gNavi_Idle_Outer_", navi_idle_o_col, ImVec4(115,230,255,255), false);
+                        EnhancementColor("Navi Idle Outer", "gNavi_Idle_Outer_", navi_idle_o_col, ImVec4(0,0,255,255), false);
                         Tooltip("Outer color for Navi (idle flying around)");
                         ImGui::Separator();
-                        EnhancementColor("Navi NPC Inner", "gNavi_NPC_Inner_", navi_npc_i_col, ImVec4(100,100,255,255), false);
+                        EnhancementColor("Navi NPC Inner", "gNavi_NPC_Inner_", navi_npc_i_col, ImVec4(150,150,255,255), false);
                         Tooltip("Inner color for Navi (when Navi fly around NPCs)");
-                        EnhancementColor("Navi NPC Outer", "gNavi_NPC_Outer_", navi_npc_o_col, ImVec4(90,90,255,255), false);
+                        EnhancementColor("Navi NPC Outer", "gNavi_NPC_Outer_", navi_npc_o_col, ImVec4(150,150,255,255), false);
                         Tooltip("Outer color for Navi (when Navi fly around NPCs)");
                         ImGui::Separator();
                         EnhancementColor("Navi Enemy Inner", "gNavi_Enemy_Inner_", navi_enemy_i_col, ImVec4(255,255,0,255), false);
                         Tooltip("Inner color for Navi (when Navi fly around Enemies or Bosses)");
-                        EnhancementColor("Navi Enemy Outer", "gNavi_Enemy_Outer_", navi_enemy_o_col, ImVec4(220,220,0,255), false);
+                        EnhancementColor("Navi Enemy Outer", "gNavi_Enemy_Outer_", navi_enemy_o_col, ImVec4(220,155,0,255), false);
                         Tooltip("Outer color for Navi (when Navi fly around Enemies or Bosses)");
                         ImGui::Separator();
                         EnhancementColor("Navi Prop Inner", "gNavi_Prop_Inner_", navi_prop_i_col, ImVec4(0,255,0,255), false);
                         Tooltip("Inner color for Navi (when Navi fly around props (signs etc))");
-                        EnhancementColor("Navi Prop Outer", "gNavi_Prop_Outer_", navi_prop_o_col, ImVec4(0,220,0,255), false);
+                        EnhancementColor("Navi Prop Outer", "gNavi_Prop_Outer_", navi_prop_o_col, ImVec4(0,255,0,255), false);
                         Tooltip("Outer color for Navi (when Navi fly around props (signs etc))");
                         ImGui::EndTabItem();
                     }
@@ -1134,14 +1208,14 @@ namespace SohImGui {
                     }
                     ImGui::EndTabBar();
                 }
-                ImGui::PopStyleColor();
                 ImGui::End();
             }
             if (Interface_isOpen) {
                 if (!Interface_isOpen) {
+                    CVar_SetS32("gColorsEditor", 0);
                     return;
                 }
-                ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+                ImGui::SetNextWindowSize(ImVec2(215, 627), ImGuiCond_FirstUseEver);
                 ImGui::Begin("Interface Editor", nullptr, ImGuiWindowFlags_NoFocusOnAppearing);
                 if (ImGui::BeginTabBar("Interface Editor", ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)) {
                     if (ImGui::BeginTabItem("Hearts")) {
@@ -1153,13 +1227,13 @@ namespace SohImGui {
                     }
                     if (ImGui::BeginTabItem("Buttons")) {
                         EnhancementColor("A Buttons", "gCCABtnPrim", a_btn_colors, ImVec4(90,90,255,255));
-                        Tooltip("A Buttons colors (Green in original Gamecube)\nAffect A buttons colors on interface, in shops, messages boxes, ocarina notes and inventory cursors.");
+                        Tooltip("A Buttons colors (Green in original GameCube)\nAffect A buttons colors on interface, in shops, messages boxes, ocarina notes and inventory cursors.");
                         EnhancementColor("B Buttons", "gCCBBtnPrim", b_btn_colors, ImVec4(0,150,0,255));
-                        Tooltip("B Button colors (Red in original Gamecube)\nAffect B button colors on interface");
+                        Tooltip("B Button colors (Red in original GameCube)\nAffect B button colors on interface");
                         EnhancementColor("C Buttons", "gCCCBtnPrim", c_btn_colors, ImVec4(255,160,0,255));
                         Tooltip("C Buttons colors (Yellowish / Oranges in originals)\nAffect C buttons colors on interface, in inventory and ocarina notes");
                         EnhancementColor("Start Buttons", "gCCStartBtnPrim", start_btn_colors, ImVec4(120,120,120,255));
-                        Tooltip("Start Button colors (gray in Gamecube)\nAffect Start button colors in inventory");
+                        Tooltip("Start Button colors (gray in GameCube)\nAffect Start button colors in inventory");
                         ImGui::EndTabItem();
                     }
                     if (ImGui::BeginTabItem("Magic Bar")) {
@@ -1182,7 +1256,6 @@ namespace SohImGui {
                     }
                     ImGui::EndTabBar();
                 }
-                ImGui::PopStyleColor();
                 ImGui::End();
             }
 
