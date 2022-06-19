@@ -2,14 +2,20 @@
 
 #include <vector>
 
+#include <math.h>
+#include <cmath>
+#include <stddef.h>
+#include <simd/simd.h>
+
 #ifndef _LANGUAGE_C
 #define _LANGUAGE_C
 #endif
-#include "PR/ultra64/gbi.h"
-#include "PR/ultra64/abi.h"
 
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
+
+#include "PR/ultra64/gbi.h"
+#include "PR/ultra64/abi.h"
 
 #include "Lib/SDL/SDL2/SDL_render.h"
 #include "Lib/ImGui/backends/imgui_impl_metal.h"
@@ -20,8 +26,6 @@
 
 // MARK: - Structs
 
-using namespace std;
-
 struct ShaderProgramMetal {
     id<MTLRenderPipelineState> pipeline;
 
@@ -30,15 +34,15 @@ struct ShaderProgramMetal {
     bool used_textures[2];
 };
 
+struct FrameUniforms {
+    simd::float1 frameCount;
+    simd::float1 noiseScale;
+};
+
 struct GfxTexture {
     id<MTLTexture> texture;
     id<MTLSamplerState> sampler;
     bool linear_filtering;
-};
-
-struct FrameUniforms {
-    int frameCount;
-    float noiseScale;
 };
 
 static struct State {
@@ -54,9 +58,9 @@ static struct State {
     FrameUniforms frame_uniforms;
 } state;
 
-static map<pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
+static std::map<std::pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
 
-static vector<struct GfxTexture> textures;
+static std::vector<struct GfxTexture> textures;
 static int current_tile;
 static uint32_t current_texture_ids[2];
 
@@ -189,9 +193,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 @property (nonatomic, strong) id<MTLDevice> device;
 @property (nonatomic, strong) id<MTLBuffer> frameUniformBuffer;
 @property (nonatomic, strong) id<MTLCommandQueue> commandQueue;
-//@property (nonatomic, strong) NSMutableDictionary *renderPipelineStateCache;
 
-//@property (nonatomic, strong) id<MTLRenderPipelineState> pipelineState;
 @property (nonatomic, strong) MTLRenderPassDescriptor* currentRenderPass;
 @property (nonatomic, strong) id<CAMetalDrawable> currentDrawable;
 
@@ -275,7 +277,6 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     MTLVertexDescriptor *vertexDescriptor = [MTLVertexDescriptor vertexDescriptor];
 
     [shaderSource appendNewLineString:@"#include <metal_stdlib>"];
-    [shaderSource appendNewLineString:@"#include <simd/simd.h>"];
     [shaderSource appendNewLineString:@"using namespace metal;"];
 
     // Uniforms struct
@@ -284,15 +285,6 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     [shaderSource appendNewLineString:@"    float noise_scale;"];
     [shaderSource appendNewLineString:@"};"];
     // end uniforms struct
-
-    // DrawUniforms struct
-    [shaderSource appendNewLineString:@"struct DrawUniforms {"];
-    [shaderSource appendNewLineString:@"    uint16_t width;"];
-    [shaderSource appendNewLineString:@"    uint16_t height;"];
-    [shaderSource appendNewLineString:@"    bool linearFiltering;"];
-    [shaderSource appendNewLineString:@"};"];
-    // end draw uniforms struct
-
 
     // Vertex struct
     [shaderSource appendNewLineString:@"struct Vertex {"];
@@ -393,7 +385,6 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     }
 
     [shaderSource appendNewLineString:@"    out.position = in.position;"];
-    [shaderSource appendNewLineString:@"    out.position.z = (out.position.z + out.position.w) / 2.0f;"];
     [shaderSource appendNewLineString:@"    return out;"];
     [shaderSource appendNewLineString:@"}"];
     // end vertex shader
@@ -668,7 +659,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         NSLog(@"Failed to created pipeline state");
     }
 
-    struct ShaderProgramMetal *prg = &shader_program_pool[make_pair(shader_id0, shader_id1)];
+    struct ShaderProgramMetal *prg = &shader_program_pool[std::make_pair(shader_id0, shader_id1)];
     prg->pipeline = pipelineState;
     prg->used_textures[0] = cc_features.used_textures[0];
     prg->used_textures[1] = cc_features.used_textures[1];
@@ -678,7 +669,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
 }
 
 static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
-    auto it = shader_program_pool.find(make_pair(shader_id0, shader_id1));
+    auto it = shader_program_pool.find(std::make_pair(shader_id0, shader_id1));
     return it == shader_program_pool.end() ? nullptr : (struct ShaderProgram *)&it->second;
 }
 
@@ -796,9 +787,9 @@ void gfx_metal_resolve_msaa_color_buffer(int fb_id_target, int fb_id_source) {
     // TODO: implement
 }
 
-map<pair<float, float>, uint16_t> gfx_metal_get_pixel_depth(int fb_id, const set<pair<float, float>>& coordinates) {
+std::map<std::pair<float, float>, uint16_t> gfx_metal_get_pixel_depth(int fb_id, const std::set<std::pair<float, float>>& coordinates) {
     // TODO: implement
-    map<pair<float, float>, uint16_t> res;
+    std::map<std::pair<float, float>, uint16_t> res;
     return res;
 }
 
