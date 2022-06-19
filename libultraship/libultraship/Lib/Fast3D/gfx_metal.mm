@@ -186,6 +186,22 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
 // MARK: - Objc Implementation
 
+@interface GfxMetalBuffer : NSObject
+@property (nonatomic, strong) id<MTLBuffer> buffer;
+@property (nonatomic, assign) NSTimeInterval lastReuseTime;
+- (instancetype)initWithBuffer:(id<MTLBuffer>)buffer;
+@end
+
+@implementation GfxMetalBuffer
+- (instancetype)initWithBuffer:(id<MTLBuffer>)buffer {
+    if ((self = [super init])) {
+        _buffer = buffer;
+        _lastReuseTime = [NSDate date].timeIntervalSince1970;
+    }
+    return self;
+}
+@end
+
 @interface GfxMetalContext : NSObject
 // Elements that only need to be setup once
 @property (nonatomic) SDL_Renderer* renderer;
@@ -197,6 +213,9 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 @property (nonatomic, strong) MTLRenderPassDescriptor* currentRenderPass;
 @property (nonatomic, strong) id<CAMetalDrawable> currentDrawable;
 
+@property (nonatomic, strong) NSMutableArray<GfxMetalBuffer *> *bufferCache;
+@property (nonatomic, assign) NSTimeInterval lastBufferCachePurge;
+
 - (bool)imguiInit;
 - (void)imguiNewFrame;
 - (void)imguiDrawData:(ImDrawData*)draw_data;
@@ -205,6 +224,9 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 - (id<MTLSamplerState>)sampleStateUsingLinearFilter:(bool)linearFilter filteringMode:(FilteringMode)filteringMode cms:(uint32_t)cms cmt:(uint32_t)cmt;
 - (void)drawTrianglesWithBufferData:(float[])buffer bufferLength:(size_t)bufferLength state:(State)state andTriangleCount:(size_t)triangleCount;
 - (void)endFrame;
+
+- (GfxMetalBuffer *)dequeueReusableBufferOfLength:(NSUInteger)length device:(id<MTLDevice>)device;
+- (void)enqueueReusableBuffer:(GfxMetalBuffer *)buffer;
 @end
 
 @implementation GfxMetalContext
@@ -218,6 +240,9 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
         _currentRenderPass = NULL;
         _currentDrawable = NULL;
+
+        _bufferCache = [NSMutableArray array];
+        _lastBufferCachePurge = [NSDate date].timeIntervalSince1970;
     }
     return self;
 }
@@ -546,8 +571,6 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 }
 
 - (void)drawTrianglesWithBufferData:(float[])buffer bufferLength:(size_t)bufferLength state:(State)state andTriangleCount:(size_t)triangleCount {
-    // TODO: Tripple buffer this
-
     if (!_frameUniformBuffer) {
         _frameUniformBuffer = [_device newBufferWithLength:sizeof(FrameUniforms) options:MTLResourceOptionCPUCacheModeDefault];
     }
@@ -557,11 +580,10 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
     id<MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
 
-    id<MTLBuffer> vertexBuffer = [_device newBufferWithLength:bufferLength * sizeof(float) options:MTLResourceOptionCPUCacheModeDefault];
-    [vertexBuffer setLabel:@"VBO"];
-    memcpy(vertexBuffer.contents, buffer, sizeof(float) * bufferLength);
+    GfxMetalBuffer* vertexBuffer = [self dequeueReusableBufferOfLength:sizeof(float) * bufferLength device:commandBuffer.device];
+    memcpy(vertexBuffer.buffer.contents, buffer, sizeof(float) * bufferLength);
 
-    [commandEncoder setVertexBuffer:vertexBuffer offset:0 atIndex:0];
+    [commandEncoder setVertexBuffer:vertexBuffer.buffer offset:0 atIndex:0];
     [commandEncoder setFragmentBuffer:_frameUniformBuffer offset:0 atIndex:0];
 
     for (int i = 0; i < 2; i++) {
@@ -588,6 +610,13 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
     [commandEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:triangleCount * 3];
 
+    __weak id weakSelf = self;
+    [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer>) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weakSelf enqueueReusableBuffer:vertexBuffer];
+        });
+    }];
+
     [commandEncoder endEncoding];
     [commandBuffer commit];
 }
@@ -596,6 +625,42 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
     [commandBuffer presentDrawable:_currentDrawable];
     [commandBuffer commit];
+}
+
+- (GfxMetalBuffer *)dequeueReusableBufferOfLength:(NSUInteger)length device:(id<MTLDevice>)device {
+    NSTimeInterval now = [NSDate date].timeIntervalSince1970;
+
+    // Purge old buffers that haven't been useful for a while
+    if (now - self.lastBufferCachePurge > 1.0) {
+        NSMutableArray *survivors = [NSMutableArray array];
+        for (GfxMetalBuffer *candidate in self.bufferCache) {
+            if (candidate.lastReuseTime > self.lastBufferCachePurge) {
+                [survivors addObject:candidate];
+            }
+        }
+        self.bufferCache = [survivors mutableCopy];
+        self.lastBufferCachePurge = now;
+    }
+
+    // See if we have a buffer we can reuse
+    GfxMetalBuffer *bestCandidate = nil;
+    for (GfxMetalBuffer *candidate in self.bufferCache)
+        if (candidate.buffer.length >= length && (bestCandidate == nil || bestCandidate.lastReuseTime > candidate.lastReuseTime))
+            bestCandidate = candidate;
+
+    if (bestCandidate != nil) {
+        [self.bufferCache removeObject:bestCandidate];
+        bestCandidate.lastReuseTime = now;
+        return bestCandidate;
+    }
+
+    // No luck; make a new buffer
+    id<MTLBuffer> backing = [device newBufferWithLength:length options:MTLResourceStorageModeShared];
+    return [[GfxMetalBuffer alloc] initWithBuffer:backing];
+}
+
+- (void)enqueueReusableBuffer:(id)buffer {
+    [self.bufferCache addObject:buffer];
 }
 
 @end
