@@ -53,6 +53,7 @@ static struct State {
     bool decal_mode;
 
     MTLViewport viewport;
+    simd::float2 viewportSize;
     MTLScissorRect scissor;
 
     FrameUniforms frame_uniforms;
@@ -285,12 +286,12 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 }
 
 - (void)imguiDrawData:(ImDrawData *)draw_data {
-    //    id<MTLCommandBuffer> commandBuffer = _commandQueue.commandBuffer;
-    //    id <MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
-    //    ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, commandEncoder);
-    //
-    //    [commandEncoder endEncoding];
-    //    [commandBuffer commit];
+//        id<MTLCommandBuffer> commandBuffer = _commandQueue.commandBuffer;
+//        id <MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
+//        ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, commandEncoder);
+//
+//        [commandEncoder endEncoding];
+//        [commandBuffer commit];
 }
 
 - (id<MTLRenderPipelineState>)createPipelineStateWithShader:(CCFeatures)features usingFilteringMode:(FilteringMode)filteringMode stride:(size_t*)stride {
@@ -386,11 +387,13 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     // end fragment output struct
 
     // vertex shader
-    [shaderSource appendNewLineString:@"vertex ProjectedVertex vertexShader(Vertex in [[stage_in]]) {"];
+    [shaderSource appendNewLineString:@"vertex ProjectedVertex vertexShader(Vertex in [[stage_in]], constant float2 *viewportSizePointer [[buffer(1)]]) {"];
     [shaderSource appendNewLineString:@"    ProjectedVertex out;"];
+    [shaderSource appendNewLineString:@"    float2 viewportSize = float2(*viewportSizePointer);"];
     for (int i = 0; i < 2; i++) {
         if (features.used_textures[i]) {
             [shaderSource appendFormat:@"    out.texCoord%d = in.texCoord%d;\n", i, i];
+            [shaderSource appendFormat:@"    out.texCoord%d.y = viewportSize.y - in.texCoord%d.y;\n", i, i];
             for (int j = 0; j < 2; j++) {
                 if (features.clamp[i][j]) {
                     [shaderSource appendFormat:@"    out.texClamp%s%d = in.texClamp%s%d;\n", j == 0 ? "S" : "T", i, j == 0 ? "S" : "T", i];
@@ -584,6 +587,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     memcpy(vertexBuffer.buffer.contents, buffer, sizeof(float) * bufferLength);
 
     [commandEncoder setVertexBuffer:vertexBuffer.buffer offset:0 atIndex:0];
+    [commandEncoder setVertexBytes:&state.viewportSize length:sizeof(state.viewportSize) atIndex:1];
     [commandEncoder setFragmentBuffer:_frameUniformBuffer offset:0 atIndex:0];
 
     for (int i = 0; i < 2; i++) {
@@ -798,6 +802,8 @@ static void gfx_metal_set_zmode_decal(bool zmode_decal) {
 
 static void gfx_metal_set_viewport(int x, int y, int width, int height) {
     state.viewport = { x, y, width, height, 0, 1 };
+    state.viewportSize.x = width;
+    state.viewportSize.y = height;
 }
 
 static void gfx_metal_set_scissor(int x, int y, int width, int height) {
