@@ -1,7 +1,7 @@
 #ifdef ENABLE_METAL
 
 #include <vector>
-
+#include <time.h>
 #include <math.h>
 #include <cmath>
 #include <stddef.h>
@@ -14,11 +14,12 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
 
+#include "Lib/ImGui/backends/imgui_impl_metal.h"
+#include "Lib/SDL/SDL2/SDL_render.h"
+
 #include "PR/ultra64/gbi.h"
 #include "PR/ultra64/abi.h"
 
-#include "Lib/SDL/SDL2/SDL_render.h"
-#include "Lib/ImGui/backends/imgui_impl_metal.h"
 #include "gfx_cc.h"
 #include "gfx_rendering_api.h"
 
@@ -52,7 +53,6 @@ static struct State {
     uint8_t depth_test_and_mask;
     bool decal_mode;
 
-    MTLViewport viewport;
     simd::float2 viewportSize;
     MTLScissorRect scissor;
 
@@ -66,6 +66,10 @@ static int current_tile;
 static uint32_t current_texture_ids[2];
 
 // MARK: - Objc Helpers
+
+static inline CFTimeInterval GetMachAbsoluteTimeInSeconds() {
+    return static_cast<CFTimeInterval>(static_cast<double>(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9);
+}
 
 static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     switch (val) {
@@ -189,7 +193,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
 @interface GfxMetalBuffer : NSObject
 @property (nonatomic, strong) id<MTLBuffer> buffer;
-@property (nonatomic, assign) NSTimeInterval lastReuseTime;
+@property (nonatomic, assign) double lastReuseTime;
 - (instancetype)initWithBuffer:(id<MTLBuffer>)buffer;
 @end
 
@@ -197,7 +201,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 - (instancetype)initWithBuffer:(id<MTLBuffer>)buffer {
     if ((self = [super init])) {
         _buffer = buffer;
-        _lastReuseTime = [NSDate date].timeIntervalSince1970;
+        _lastReuseTime = GetMachAbsoluteTimeInSeconds();
     }
     return self;
 }
@@ -211,23 +215,24 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 @property (nonatomic, strong) id<MTLBuffer> frameUniformBuffer;
 @property (nonatomic, strong) id<MTLCommandQueue> commandQueue;
 
+@property (nonatomic, strong) id<MTLCommandBuffer> currentCommandBuffer;
 @property (nonatomic, strong) MTLRenderPassDescriptor* currentRenderPass;
 @property (nonatomic, strong) id<CAMetalDrawable> currentDrawable;
 
 @property (nonatomic, strong) NSMutableArray<GfxMetalBuffer *> *bufferCache;
 @property (nonatomic, assign) NSTimeInterval lastBufferCachePurge;
 
-- (bool)imguiInit;
-- (void)imguiNewFrame;
-- (void)imguiDrawData:(ImDrawData*)draw_data;
+- (id<MTLDevice>)setupLayerDevice;
+- (MTLRenderPassDescriptor*)renderPassForFrame;
 
-- (id<MTLRenderPipelineState>)createPipelineStateWithShader:(CCFeatures)features usingFilteringMode:(FilteringMode)filteringMode stride:(size_t*)stride;
+- (void)configureDepthBuffer:(bool)hasDepthBuffer msaaCount:(int)msaaCount;
+- (id<MTLRenderPipelineState>)pipelineStateWithShader:(CCFeatures)features usingFilteringMode:(FilteringMode)filteringMode stride:(size_t*)stride;
 - (id<MTLSamplerState>)sampleStateUsingLinearFilter:(bool)linearFilter filteringMode:(FilteringMode)filteringMode cms:(uint32_t)cms cmt:(uint32_t)cmt;
+
 - (void)drawTrianglesWithBufferData:(float[])buffer bufferLength:(size_t)bufferLength state:(State)state andTriangleCount:(size_t)triangleCount;
 - (void)endFrame;
 
 - (GfxMetalBuffer *)dequeueReusableBufferOfLength:(NSUInteger)length device:(id<MTLDevice>)device;
-- (void)enqueueReusableBuffer:(GfxMetalBuffer *)buffer;
 @end
 
 @implementation GfxMetalContext
@@ -248,17 +253,17 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     return self;
 }
 
-- (bool)imguiInit {
+- (id<MTLDevice>)setupLayerDevice {
     _layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(_renderer);
     _layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
 
-    _device = _layer.device;
-    _commandQueue = _device.newCommandQueue;
+    _device = [_layer device];
+    _commandQueue = [_device newCommandQueue];
 
-    return ImGui_ImplMetal_Init(_device);
+    return _device;
 }
 
-- (void)imguiNewFrame {
+- (MTLRenderPassDescriptor*)renderPassForFrame {
     int width, height;
     SDL_GetRendererOutputSize(_renderer, &width, &height);
     _layer.drawableSize = CGSizeMake(width, height);
@@ -274,27 +279,36 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
     renderPassDescriptor.colorAttachments[0].clearColor = clearColor;
 
-    //    renderPass.depthAttachment.texture = self.depthTexture;
-    //    renderPass.depthAttachment.loadAction = MTLLoadActionClear;
-    //    renderPass.depthAttachment.storeAction = MTLStoreActionStore;
-    //    renderPass.depthAttachment.clearDepth = 1;
-
+    _currentCommandBuffer = [_commandQueue commandBuffer];
     _currentDrawable = drawable;
     _currentRenderPass = renderPassDescriptor;
 
-    ImGui_ImplMetal_NewFrame(_currentRenderPass);
+    return _currentRenderPass;
 }
 
-- (void)imguiDrawData:(ImDrawData *)draw_data {
-//        id<MTLCommandBuffer> commandBuffer = _commandQueue.commandBuffer;
-//        id <MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
-//        ImGui_ImplMetal_RenderDrawData(draw_data, commandBuffer, commandEncoder);
-//
-//        [commandEncoder endEncoding];
-//        [commandBuffer commit];
+- (void)configureDepthBuffer:(bool)hasDepthBuffer msaaCount:(int)msaaCount {
+    if (hasDepthBuffer) {
+        CGSize drawableSize = [_layer drawableSize];
+        MTLTextureDescriptor *depthTexDesc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+                                                                                                width:drawableSize.width
+                                                                                               height:drawableSize.height
+                                                                                            mipmapped:YES];
+
+        depthTexDesc.storageMode = MTLStorageModePrivate;
+        depthTexDesc.sampleCount = msaaCount;
+        depthTexDesc.arrayLength = 1;
+        id<MTLTexture> depthTexture = [_device newTextureWithDescriptor:depthTexDesc];
+
+        _currentRenderPass.depthAttachment.texture = depthTexture;
+        _currentRenderPass.depthAttachment.loadAction = MTLLoadActionClear;
+        _currentRenderPass.depthAttachment.storeAction = MTLStoreActionStore;
+        _currentRenderPass.depthAttachment.clearDepth = 1;
+    } else {
+        _currentRenderPass.depthAttachment = nil;
+    }
 }
 
-- (id<MTLRenderPipelineState>)createPipelineStateWithShader:(CCFeatures)features usingFilteringMode:(FilteringMode)filteringMode stride:(size_t*)stride {
+- (id<MTLRenderPipelineState>)pipelineStateWithShader:(CCFeatures)features usingFilteringMode:(FilteringMode)filteringMode stride:(size_t*)stride {
     NSMutableString *shaderSource = [[NSMutableString alloc] init];
 
     size_t num_floats = 4;
@@ -393,7 +407,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     for (int i = 0; i < 2; i++) {
         if (features.used_textures[i]) {
             [shaderSource appendFormat:@"    out.texCoord%d = in.texCoord%d;\n", i, i];
-            [shaderSource appendFormat:@"    out.texCoord%d.y = viewportSize.y - in.texCoord%d.y;\n", i, i];
+//            [shaderSource appendFormat:@"    out.texCoord%d.y = viewportSize.y - in.texCoord%d.y;\n", i, i];
             for (int j = 0; j < 2; j++) {
                 if (features.clamp[i][j]) {
                     [shaderSource appendFormat:@"    out.texClamp%s%d = in.texClamp%s%d;\n", j == 0 ? "S" : "T", i, j == 0 ? "S" : "T", i];
@@ -413,6 +427,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     }
 
     [shaderSource appendNewLineString:@"    out.position = in.position;"];
+//    [shaderSource appendNewLineString:@"    out.position.y = viewportSize.y - in.position.y;"];
     [shaderSource appendNewLineString:@"    return out;"];
     [shaderSource appendNewLineString:@"}"];
     // end vertex shader
@@ -580,10 +595,9 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
     memcpy(_frameUniformBuffer.contents, &state.frame_uniforms, sizeof(FrameUniforms));
 
-    id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
-    id<MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
+    id<MTLRenderCommandEncoder> commandEncoder = [_currentCommandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
 
-    GfxMetalBuffer* vertexBuffer = [self dequeueReusableBufferOfLength:sizeof(float) * bufferLength device:commandBuffer.device];
+    GfxMetalBuffer* vertexBuffer = [self dequeueReusableBufferOfLength:sizeof(float) * bufferLength device:_device];
     memcpy(vertexBuffer.buffer.contents, buffer, sizeof(float) * bufferLength);
 
     [commandEncoder setVertexBuffer:vertexBuffer.buffer offset:0 atIndex:0];
@@ -601,8 +615,8 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     [commandEncoder setTriangleFillMode:MTLTriangleFillModeFill];
     [commandEncoder setCullMode:MTLCullModeNone];
     [commandEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
-    [commandEncoder setViewport:state.viewport];
-    [commandEncoder setScissorRect:state.scissor];
+//    [commandEncoder setViewport:(MTLViewport){0.0, 0.0, state.viewportSize.x, state.viewportSize.y, 0.0, 1.0 }];
+//    [commandEncoder setScissorRect:state.scissor];
     [commandEncoder setDepthBias:0 slopeScale:state.decal_mode ? -2 : 0 clamp:0];
 
     MTLDepthStencilDescriptor* depthDescriptor = [MTLDepthStencilDescriptor new];
@@ -615,24 +629,22 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     [commandEncoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:triangleCount * 3];
 
     __weak id weakSelf = self;
-    [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer>) {
+    [_currentCommandBuffer addCompletedHandler:^(id<MTLCommandBuffer>) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [weakSelf enqueueReusableBuffer:vertexBuffer];
+            [[weakSelf bufferCache] addObject:vertexBuffer];
         });
     }];
 
     [commandEncoder endEncoding];
-    [commandBuffer commit];
 }
 
 - (void)endFrame {
-    id<MTLCommandBuffer> commandBuffer = [_commandQueue commandBuffer];
-    [commandBuffer presentDrawable:_currentDrawable];
-    [commandBuffer commit];
+    [_currentCommandBuffer presentDrawable:_currentDrawable];
+    [_currentCommandBuffer commit];
 }
 
 - (GfxMetalBuffer *)dequeueReusableBufferOfLength:(NSUInteger)length device:(id<MTLDevice>)device {
-    NSTimeInterval now = [NSDate date].timeIntervalSince1970;
+    uint64_t now = GetMachAbsoluteTimeInSeconds();
 
     // Purge old buffers that haven't been useful for a while
     if (now - self.lastBufferCachePurge > 1.0) {
@@ -663,10 +675,6 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     return [[GfxMetalBuffer alloc] initWithBuffer:backing];
 }
 
-- (void)enqueueReusableBuffer:(id)buffer {
-    [self.bufferCache addObject:buffer];
-}
-
 @end
 
 static GfxMetalContext* metal_ctx = nil;
@@ -683,15 +691,20 @@ void Metal_SetRenderer(SDL_Renderer* renderer) {
 }
 
 bool Metal_Init() {
-    return [metal_ctx imguiInit];
+    id<MTLDevice> device = [metal_ctx setupLayerDevice];
+    return ImGui_ImplMetal_Init(device);
 }
 
 void Metal_NewFrame() {
-    [metal_ctx imguiNewFrame];
+    MTLRenderPassDescriptor *renderPass = [metal_ctx renderPassForFrame];
+    ImGui_ImplMetal_NewFrame(renderPass);
 }
 
 void Metal_RenderDrawData(ImDrawData* draw_data) {
-    [metal_ctx imguiDrawData:draw_data];
+    //    id <MTLRenderCommandEncoder> commandEncoder = [_currentCommandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
+    //    ImGui_ImplMetal_RenderDrawData(draw_data, _currentCommandBuffer, commandEncoder);
+    //
+    //    [commandEncoder endEncoding];
 }
 
 // MARK: - Metal Graphics Rendering API
@@ -718,7 +731,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
 
     size_t stride = 0;
 
-    id<MTLRenderPipelineState> pipelineState = [metal_ctx createPipelineStateWithShader:cc_features usingFilteringMode:state.current_filter_mode stride:&stride];
+    id<MTLRenderPipelineState> pipelineState = [metal_ctx pipelineStateWithShader:cc_features usingFilteringMode:state.current_filter_mode stride:&stride];
 
     if (!pipelineState) {
         // Pipeline State creation could fail if we haven't properly set up our pipeline descriptor.
@@ -801,9 +814,12 @@ static void gfx_metal_set_zmode_decal(bool zmode_decal) {
 }
 
 static void gfx_metal_set_viewport(int x, int y, int width, int height) {
-    state.viewport = { x, y, width, height, 0, 1 };
-    state.viewportSize.x = width;
-    state.viewportSize.y = height;
+    state.viewportSize = { width, height };
+//    [[metal_ctx currentDrawable] set]
+    metal_ctx.layer.drawableSize = CGSizeMake(width, height);
+
+//    int widthx, heightx;
+//    SDL_GetRendererOutputSize(metal_ctx.renderer, &widthx, &heightx);
 }
 
 static void gfx_metal_set_scissor(int x, int y, int width, int height) {
@@ -841,6 +857,8 @@ int gfx_metal_create_framebuffer(void) {
 
 static void gfx_metal_update_framebuffer_parameters(int fb_id, uint32_t width, uint32_t height, uint32_t msaa_level, bool opengl_invert_y, bool render_target, bool has_depth_buffer, bool can_extract_depth) {
     // TODO: implement
+
+    [metal_ctx configureDepthBuffer:has_depth_buffer msaaCount:msaa_level];
 }
 
 void gfx_metal_start_draw_to_framebuffer(int fb_id, float noise_scale) {

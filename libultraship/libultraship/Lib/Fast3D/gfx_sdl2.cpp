@@ -178,7 +178,6 @@ if (strcmp(renderer_api_name, "Metal") == 0) {
 
     wnd = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
             window_width, window_height, flags);
-    SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
 
     if (start_in_fullscreen) {
         set_fullscreen(true, false);
@@ -193,8 +192,10 @@ if (strcmp(renderer_api_name, "Metal") == 0) {
             return;
         }
 
+        SDL_GetRendererOutputSize(renderer, &window_width, &window_height);
         Metal_SetRenderer(renderer);
     } else {
+        SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
         ctx = SDL_GL_CreateContext(wnd);
         SDL_GL_SetSwapInterval(1);
     }
