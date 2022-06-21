@@ -46,7 +46,7 @@
 
 using namespace std;
 
-struct ShaderProgram {
+struct ShaderProgramOpenGL {
     GLuint opengl_program_id;
     uint8_t num_inputs;
     bool used_textures[2];
@@ -68,7 +68,7 @@ struct Framebuffer {
     GLuint fbo, clrbuf, clrbuf_msaa, rbo;
 };
 
-static map<pair<uint64_t, uint32_t>, struct ShaderProgram> shader_program_pool;
+static map<pair<uint64_t, uint32_t>, struct ShaderProgramOpenGL> shader_program_pool;
 static GLuint opengl_vbo;
 #ifdef __APPLE__
 static GLuint opengl_vao;
@@ -93,18 +93,20 @@ static struct GfxClipParameters gfx_opengl_get_clip_parameters(void) {
     return { false, framebuffers[current_framebuffer].invert_y };
 }
 
-static void gfx_opengl_vertex_array_set_attribs(struct ShaderProgram *prg) {
-    size_t num_floats = prg->num_floats;
+static void gfx_opengl_vertex_array_set_attribs(struct ShaderProgramOpenGL *prg) {
+    struct ShaderProgramOpenGL *p = (struct ShaderProgramOpenGL *)prg;
+
+    size_t num_floats = p->num_floats;
     size_t pos = 0;
 
-    for (int i = 0; i < prg->num_attribs; i++) {
-        glEnableVertexAttribArray(prg->attrib_locations[i]);
-        glVertexAttribPointer(prg->attrib_locations[i], prg->attrib_sizes[i], GL_FLOAT, GL_FALSE, num_floats * sizeof(float), (void *) (pos * sizeof(float)));
-        pos += prg->attrib_sizes[i];
+    for (int i = 0; i < p->num_attribs; i++) {
+        glEnableVertexAttribArray(p->attrib_locations[i]);
+        glVertexAttribPointer(p->attrib_locations[i], p->attrib_sizes[i], GL_FLOAT, GL_FALSE, num_floats * sizeof(float), (void *) (pos * sizeof(float)));
+        pos += p->attrib_sizes[i];
     }
 }
 
-static void gfx_opengl_set_uniforms(struct ShaderProgram *prg) {
+static void gfx_opengl_set_uniforms(struct ShaderProgramOpenGL *prg) {
     if (prg->used_noise) {
         glUniform1i(prg->frame_count_location, frame_count);
         glUniform1f(prg->noise_scale_location, current_noise_scale);
@@ -112,18 +114,22 @@ static void gfx_opengl_set_uniforms(struct ShaderProgram *prg) {
 }
 
 static void gfx_opengl_unload_shader(struct ShaderProgram *old_prg) {
-    if (old_prg != NULL) {
-        for (int i = 0; i < old_prg->num_attribs; i++) {
-            glDisableVertexAttribArray(old_prg->attrib_locations[i]);
+    struct ShaderProgramOpenGL *p = (struct ShaderProgramOpenGL *)old_prg;
+
+    if (p != NULL) {
+        for (int i = 0; i < p->num_attribs; i++) {
+            glDisableVertexAttribArray(p->attrib_locations[i]);
         }
     }
 }
 
 static void gfx_opengl_load_shader(struct ShaderProgram *new_prg) {
+    struct ShaderProgramOpenGL *p = (struct ShaderProgramOpenGL *)new_prg;
+
     // if (!new_prg) return;
-    glUseProgram(new_prg->opengl_program_id);
-    gfx_opengl_vertex_array_set_attribs(new_prg);
-    gfx_opengl_set_uniforms(new_prg);
+    glUseProgram(p->opengl_program_id);
+    gfx_opengl_vertex_array_set_attribs(p);
+    gfx_opengl_set_uniforms(p);
 }
 
 static void append_str(char *buf, size_t *len, const char *str) {
@@ -543,7 +549,7 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
 
     size_t cnt = 0;
 
-    struct ShaderProgram* prg = &shader_program_pool[make_pair(shader_id0, shader_id1)];
+    struct ShaderProgramOpenGL* prg = &shader_program_pool[make_pair(shader_id0, shader_id1)];
     prg->attrib_locations[cnt] = glGetAttribLocation(shader_program, "aVtxPos");
     prg->attrib_sizes[cnt] = 4;
     ++cnt;
@@ -594,7 +600,7 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
     prg->num_floats = num_floats;
     prg->num_attribs = cnt;
 
-    gfx_opengl_load_shader(prg);
+    gfx_opengl_load_shader((struct ShaderProgram *)prg);
 
     if (cc_features.used_textures[0]) {
         GLint sampler_location = glGetUniformLocation(shader_program, "uTex0");
@@ -613,18 +619,20 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
         prg->used_noise = false;
     }
 
-    return prg;
+    return  (struct ShaderProgram *)prg;
 }
 
 static struct ShaderProgram *gfx_opengl_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
     auto it = shader_program_pool.find(make_pair(shader_id0, shader_id1));
-    return it == shader_program_pool.end() ? nullptr : &it->second;
+    return it == shader_program_pool.end() ? nullptr : (struct ShaderProgram *)&it->second;
 }
 
 static void gfx_opengl_shader_get_info(struct ShaderProgram *prg, uint8_t *num_inputs, bool used_textures[2]) {
-    *num_inputs = prg->num_inputs;
-    used_textures[0] = prg->used_textures[0];
-    used_textures[1] = prg->used_textures[1];
+    struct ShaderProgramOpenGL *p = (struct ShaderProgramOpenGL *)prg;
+
+    *num_inputs = p->num_inputs;
+    used_textures[0] = p->used_textures[0];
+    used_textures[1] = p->used_textures[1];
 }
 
 static GLuint gfx_opengl_new_texture(void) {

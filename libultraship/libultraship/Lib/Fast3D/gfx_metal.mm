@@ -28,8 +28,9 @@
 // MARK: - Structs
 
 struct ShaderProgramMetal {
-    id<MTLRenderPipelineState> pipeline;
-    
+    uint64_t shader_id0;
+    uint32_t shader_id1;
+
     uint8_t num_inputs;
     uint8_t num_floats;
     bool used_textures[2];
@@ -59,8 +60,6 @@ static struct State {
     FrameUniforms frame_uniforms;
 } state;
 
-static std::map<std::pair<uint64_t, uint32_t>, struct ShaderProgramMetal> shader_program_pool;
-
 static std::vector<struct GfxTexture> textures;
 static int current_tile;
 static uint32_t current_texture_ids[2];
@@ -88,6 +87,9 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
 @interface NSString (Shader)
 + (instancetype)stringFromShader:(uint32_t)item withAlpha:(bool)withAlpha onlyAlpha:(bool)onlyAlpha inputsHaveAlpha:(bool)inputsHaveAlpha hintSingleElement:(bool)hintSingleElement;
+
++ (instancetype)stringHashFromShaderIds:(uint64_t)id1 id2:(uint32_t)id2;
++ (instancetype)stringHashFromShaderProgram:(ShaderProgramMetal)program;
 @end
 
 @implementation NSString (Shader)
@@ -149,6 +151,14 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     return @"";
 }
 
++ (instancetype)stringHashFromShaderIds:(uint64_t)id1 id2:(uint32_t)id2 {
+    return [NSString stringWithFormat:@"%llu-%i", id1, id2];
+}
+
++ (instancetype)stringHashFromShaderProgram:(struct ShaderProgramMetal)program {
+    return [NSString stringWithFormat:@"%llu-%i", program.shader_id0, program.shader_id1];
+}
+
 @end
 
 @interface NSMutableString (Formatting)
@@ -207,6 +217,21 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 }
 @end
 
+@interface GfxShaderProgram: NSObject
+@property (nonatomic, strong) id<MTLRenderPipelineState> pipeline;
+@property (nonatomic, strong) NSValue* shaderProgram;
+@end
+
+@implementation GfxShaderProgram
+- (instancetype)initWithPipelineState:(id<MTLRenderPipelineState>)pipeline {
+    if ((self = [super init])) {
+        _pipeline = pipeline;
+        _shaderProgram = NULL;
+    }
+    return self;
+}
+@end
+
 @interface GfxMetalContext : NSObject
 // Elements that only need to be setup once
 @property (nonatomic) SDL_Renderer* renderer;
@@ -221,6 +246,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 @property (nonatomic, strong) id<CAMetalDrawable> currentDrawable;
 
 @property (nonatomic, strong) NSMutableArray<GfxMetalBuffer *> *bufferCache;
+@property (nonatomic, strong) NSMutableDictionary *shaderProgramCache;
 @property (nonatomic, assign) NSTimeInterval lastBufferCachePurge;
 
 - (id<MTLDevice>)setupLayerDevice;
@@ -231,7 +257,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 - (id<MTLSamplerState>)sampleStateUsingLinearFilter:(bool)linearFilter filteringMode:(FilteringMode)filteringMode cms:(uint32_t)cms cmt:(uint32_t)cmt;
 
 - (void)startFrame;
-- (void)drawTrianglesWithBufferData:(float[])buffer bufferLength:(size_t)bufferLength state:(State)state andTriangleCount:(size_t)triangleCount;
+- (void)drawTrianglesWithBufferData:(float[])buffer bufferLength:(size_t)bufferLength andTriangleCount:(size_t)triangleCount;
 - (void)endFrame;
 
 - (GfxMetalBuffer *)dequeueReusableBufferOfLength:(NSUInteger)length device:(id<MTLDevice>)device;
@@ -250,6 +276,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
         _currentDrawable = NULL;
         
         _bufferCache = [NSMutableArray array];
+        _shaderProgramCache = [NSMutableDictionary dictionary];
         _lastBufferCachePurge = [NSDate date].timeIntervalSince1970;
     }
     return self;
@@ -599,7 +626,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     _currentCommandEncoder = [_currentCommandBuffer renderCommandEncoderWithDescriptor:_currentRenderPass];
 }
 
-- (void)drawTrianglesWithBufferData:(float[])buffer bufferLength:(size_t)bufferLength state:(State)state andTriangleCount:(size_t)triangleCount {
+- (void)drawTrianglesWithBufferData:(float[])buffer bufferLength:(size_t)bufferLength andTriangleCount:(size_t)triangleCount {
     GfxMetalBuffer* vertexBuffer = [self dequeueReusableBufferOfLength:sizeof(float) * bufferLength device:_device];
     memcpy(vertexBuffer.buffer.contents, buffer, sizeof(float) * bufferLength);
     
@@ -613,8 +640,10 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
             [_currentCommandEncoder setFragmentSamplerState:textures[i].sampler atIndex:i];
         }
     }
-    
-    [_currentCommandEncoder setRenderPipelineState:state.shader_program->pipeline];
+
+    GfxShaderProgram *shaderProgram = _shaderProgramCache[[NSString stringHashFromShaderProgram:*state.shader_program]];
+
+    [_currentCommandEncoder setRenderPipelineState:shaderProgram.pipeline];
     [_currentCommandEncoder setTriangleFillMode:MTLTriangleFillModeFill];
     [_currentCommandEncoder setCullMode:MTLCullModeNone];
     [_currentCommandEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
@@ -739,19 +768,25 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         // from Xcode)
         NSLog(@"Failed to created pipeline state");
     }
-    
-    struct ShaderProgramMetal *prg = &shader_program_pool[std::make_pair(shader_id0, shader_id1)];
-    prg->pipeline = pipelineState;
-    prg->used_textures[0] = cc_features.used_textures[0];
-    prg->used_textures[1] = cc_features.used_textures[1];
-    prg->num_floats = stride / sizeof(float);
-    
-    return (struct ShaderProgram *)(state.shader_program = prg);
+
+    GfxShaderProgram *program = [[GfxShaderProgram alloc] initWithPipelineState:pipelineState];
+    struct ShaderProgramMetal shaderProgram = {
+        shader_id0,
+        shader_id1,
+        stride / sizeof(float),
+        cc_features.num_inputs,
+        { cc_features.used_textures[0], cc_features.used_textures[1] }
+    };
+    program.shaderProgram = [NSValue valueWithPointer:&shaderProgram];
+    metal_ctx.shaderProgramCache[[NSString stringHashFromShaderProgram:shaderProgram]] = program;
+
+    gfx_metal_load_shader((struct ShaderProgram *)&shaderProgram);
+    return (struct ShaderProgram *)(program.shaderProgram.pointerValue);
 }
 
 static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
-    auto it = shader_program_pool.find(std::make_pair(shader_id0, shader_id1));
-    return it == shader_program_pool.end() ? nullptr : (struct ShaderProgram *)&it->second;
+    GfxShaderProgram *shaderProgram = metal_ctx.shaderProgramCache[[NSString stringHashFromShaderIds:shader_id0 id2:shader_id1]];
+    return shaderProgram == nil ? nullptr : (struct ShaderProgram *)shaderProgram.shaderProgram.pointerValue;
 }
 
 static void gfx_metal_shader_get_info(struct ShaderProgram *prg, uint8_t *num_inputs, bool used_textures[2]) {
@@ -827,7 +862,7 @@ static void gfx_metal_set_use_alpha(bool use_alpha) {
 }
 
 static void gfx_metal_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
-    [metal_ctx drawTrianglesWithBufferData:buf_vbo bufferLength:buf_vbo_len state:state andTriangleCount:buf_vbo_num_tris];
+    [metal_ctx drawTrianglesWithBufferData:buf_vbo bufferLength:buf_vbo_len andTriangleCount:buf_vbo_num_tris];
 }
 
 static void gfx_metal_on_resize(void) {
