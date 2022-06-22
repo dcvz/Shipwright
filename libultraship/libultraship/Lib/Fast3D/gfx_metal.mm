@@ -212,7 +212,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
 @interface GfxShaderProgram: NSObject
 @property (nonatomic, strong) id<MTLRenderPipelineState> pipeline;
-@property (nonatomic, strong) NSValue* shaderProgram;
+@property (nonatomic, strong) NSData* shaderProgram;
 @end
 
 @implementation GfxShaderProgram
@@ -780,16 +780,17 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         cc_features.num_inputs,
         { cc_features.used_textures[0], cc_features.used_textures[1] }
     };
-    program.shaderProgram = [NSValue valueWithPointer:&shaderProgram];
+    program.shaderProgram = [NSData dataWithBytes:&shaderProgram length:sizeof(struct ShaderProgramMetal)];
     metal_ctx.shaderProgramCache[[NSString stringHashFromShaderProgram:shaderProgram]] = program;
 
-    gfx_metal_load_shader((struct ShaderProgram *)&shaderProgram);
-    return (struct ShaderProgram *)(program.shaderProgram.pointerValue);
+    gfx_metal_load_shader((struct ShaderProgram *)[program.shaderProgram bytes]);
+    return (struct ShaderProgram *)([program.shaderProgram bytes]);
 }
 
 static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
     GfxShaderProgram *shaderProgram = metal_ctx.shaderProgramCache[[NSString stringHashFromShaderIds:shader_id0 id2:shader_id1]];
-    return shaderProgram == nil ? nullptr : (struct ShaderProgram *)shaderProgram.shaderProgram.pointerValue;
+
+    return shaderProgram == nil ? nullptr : (struct ShaderProgram *)[shaderProgram.shaderProgram bytes];
 }
 
 static void gfx_metal_shader_get_info(struct ShaderProgram *prg, uint8_t *num_inputs, bool used_textures[2]) {
