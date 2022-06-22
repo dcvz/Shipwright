@@ -123,13 +123,14 @@ namespace SohImGui {
     void ImGuiWMInit() {
         switch (impl.backend) {
         case Backend::SDL:
-            if (impl.sdl.is_metal) {
-                ImGui_ImplSDL2_InitForMetal(static_cast<SDL_Window*>(impl.sdl.window));
-                break;
+            switch (impl.sdl.gfx_api) {
+                case SDLGfxApi::Metal:
+                    ImGui_ImplSDL2_InitForMetal(static_cast<SDL_Window*>(impl.sdl.window));
+                    break;
+                case SDLGfxApi::OpenGL:
+                    ImGui_ImplSDL2_InitForOpenGL(static_cast<SDL_Window*>(impl.sdl.window), impl.sdl.context);
+                    break;
             }
-                
-            ImGui_ImplSDL2_InitForOpenGL(static_cast<SDL_Window*>(impl.sdl.window), impl.sdl.context);
-            break;
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
         case Backend::DX11:
             ImGui_ImplWin32_Init(impl.dx11.window);
@@ -144,18 +145,18 @@ namespace SohImGui {
     void ImGuiBackendInit() {
         switch (impl.backend) {
         case Backend::SDL:
-            if (impl.sdl.is_metal) {
-                Metal_Init();
-                break;
+            switch (impl.sdl.gfx_api) {
+                case SDLGfxApi::Metal:
+                    Metal_Init();
+                    break;
+                case SDLGfxApi::OpenGL:
+                #if defined(__APPLE__)
+                    ImGui_ImplOpenGL3_Init("#version 410 core");
+                #else
+                    ImGui_ImplOpenGL3_Init("#version 120");
+                #endif
+                    break;
             }
-            
-        #if defined(__APPLE__)
-            ImGui_ImplOpenGL3_Init("#version 410 core");
-        #else
-            ImGui_ImplOpenGL3_Init("#version 120");
-        #endif
-            break;
-
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
         case Backend::DX11:
             ImGui_ImplDX11_Init(static_cast<ID3D11Device*>(impl.dx11.device), static_cast<ID3D11DeviceContext*>(impl.dx11.device_context));
@@ -199,13 +200,15 @@ namespace SohImGui {
     void ImGuiBackendNewFrame() {
         switch (impl.backend) {
         case Backend::SDL:
-            if (impl.sdl.is_metal) {
-                Metal_NewFrame();
-                break;
+            switch (impl.sdl.gfx_api) {
+                case SDLGfxApi::Metal:
+                    Metal_NewFrame();
+                    break;
+                case SDLGfxApi::OpenGL:
+                    ImGui_ImplOpenGL3_NewFrame();
+                    break;
             }
-            
-            ImGui_ImplOpenGL3_NewFrame();
-            break;
+
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
         case Backend::DX11:
             ImGui_ImplDX11_NewFrame();
@@ -219,13 +222,14 @@ namespace SohImGui {
     void ImGuiRenderDrawData(ImDrawData* data) {
         switch (impl.backend) {
         case Backend::SDL:
-             if (impl.sdl.is_metal) {
-                  Metal_RenderDrawData(data);
-                  break;
-             }
-
-            ImGui_ImplOpenGL3_RenderDrawData(data);
-            break;
+            switch (impl.sdl.gfx_api) {
+                case SDLGfxApi::Metal:
+                    Metal_RenderDrawData(data);
+                    break;
+                case SDLGfxApi::OpenGL:
+                    ImGui_ImplOpenGL3_RenderDrawData(data);
+                    break;
+            }
 #if defined(ENABLE_DX11) || defined(ENABLE_DX12)
         case Backend::DX11:
             ImGui_ImplDX11_RenderDrawData(data);

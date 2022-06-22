@@ -16,6 +16,11 @@ namespace SohImGui {
         SDL
     };
 
+    enum class SDLGfxApi {
+        Metal,
+        OpenGL
+    };
+
     enum class Dialogues {
         dConsole,
         dMenubar,
@@ -33,7 +38,7 @@ namespace SohImGui {
             struct {
                 void* window;
                 void* context;
-                bool is_metal;
+                SDLGfxApi gfx_api;
             } sdl;
         };
     } WindowImpl;

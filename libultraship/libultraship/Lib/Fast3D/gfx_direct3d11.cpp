@@ -392,7 +392,7 @@ void CSMain(uint3 DTid : SV_DispatchThreadID) {
 }
 
 static const char* gfx_d3d11_get_name() {
-    return "D3D11";
+    return "DirectX 11";
 }
 
 static struct GfxClipParameters gfx_d3d11_get_clip_parameters(void) {

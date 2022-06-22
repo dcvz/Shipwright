@@ -19,14 +19,14 @@
  * End empty shims
  */
 
-void SetWindowManager(struct GfxWindowManagerAPI** WmApi, struct GfxRenderingAPI** RenderingApi, const std::string& gfx_backend) {
+void SetWindowManager(struct GfxWindowManagerAPI** WmApi, struct GfxRenderingAPI** RenderingApi, const std::string& gfx_backend, const std::string& gfx_api) {
     // First set default
-#ifdef ENABLE_METAL
+#if defined(ENABLE_OPENGL) || defined(ENABLE_METAL)
+    #ifdef ENABLE_METAL
     *RenderingApi = &gfx_metal_api;
-    *WmApi = &gfx_sdl;
-#endif
-#ifdef ENABLE_OPENGL
+    #else
     *RenderingApi = &gfx_opengl_api;
+    #endif
     #if defined(__linux__)
         // LINUX_TODO:
         // *WmApi = &gfx_glx;
@@ -51,15 +51,13 @@ void SetWindowManager(struct GfxWindowManagerAPI** WmApi, struct GfxRenderingAPI
         *WmApi = &gfx_dxgi_api;
     }
 #endif
-#ifdef ENABLE_METAL
-    if (gfx_backend == "metal") {
-        *RenderingApi = &gfx_metal_api;
-        *WmApi = &gfx_sdl;
-    }
-#endif
-#ifdef ENABLE_OPENGL
+#if defined(ENABLE_OPENGL) || defined(ENABLE_METAL)
     if (gfx_backend == "sdl") {
-        *RenderingApi = &gfx_opengl_api;
+        if (gfx_api == "opengl") {
+            *RenderingApi = &gfx_opengl_api;
+        } else {
+            *RenderingApi = &gfx_metal_api;
+        }
         *WmApi = &gfx_sdl;
     }
 #ifdef __linux__

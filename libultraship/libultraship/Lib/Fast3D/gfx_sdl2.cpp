@@ -15,9 +15,7 @@
 #include "SDL_opengl.h"
 #elif __APPLE__
 #include <SDL.h>
-#ifdef ENABLE_METAL
 #include "gfx_metal.h"
-#endif
 #else
 #include <SDL2/SDL.h>
 #define GL_GLEXT_PROTOTYPES 1
@@ -32,6 +30,8 @@
 #include <WTypesbase.h>
 #endif
 #include <time.h>
+
+#define GFX_BACKEND_NAME "SDL"
 
 static SDL_Window *wnd;
 static SDL_GLContext ctx;
@@ -132,15 +132,15 @@ static int target_fps = 60;
 #define FRAME_INTERVAL_US_NUMERATOR 1000000
 #define FRAME_INTERVAL_US_DENOMINATOR (target_fps)
 
-static void gfx_sdl_init(const char *game_name, const char *renderer_api_name, bool start_in_fullscreen) {
+static void gfx_sdl_init(const char *game_name, const char *gfx_api_name, bool start_in_fullscreen) {
     SDL_Init(SDL_INIT_VIDEO);
 
 #if defined(ENABLE_METAL)
-if (strcmp(renderer_api_name, "Metal") == 0) {
-    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "metal");
-} else {
+if (strcmp(gfx_api_name, "OpenGL") == 0) {
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+} else {
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "metal");
 }
 #else
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
@@ -148,10 +148,12 @@ if (strcmp(renderer_api_name, "Metal") == 0) {
 #endif
 
 #if defined(__APPLE__)
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    if (strcmp(gfx_api_name, "OpenGL") == 0) {
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    }
 #endif
 
 #ifdef _WIN32
@@ -162,15 +164,15 @@ if (strcmp(renderer_api_name, "Metal") == 0) {
     //SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
     char title[512];
-    int len = sprintf(title, "%s (%s - %s)", game_name, "SDL", renderer_api_name);
+    int len = sprintf(title, "%s (%s - %s)", game_name, GFX_BACKEND_NAME, gfx_api_name);
 
     Uint32 flags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
 
 #if defined(ENABLE_METAL)
-    if (strcmp(renderer_api_name, "Metal") == 0) {
-        flags = flags | SDL_WINDOW_METAL;
-    } else {
+    if (strcmp(gfx_api_name, "OpenGL") == 0) {
         flags = flags | SDL_WINDOW_OPENGL;
+    } else {
+        flags = flags | SDL_WINDOW_METAL;
     }
 #else
     flags = flags | SDL_WINDOW_OPENGL;
@@ -184,7 +186,11 @@ if (strcmp(renderer_api_name, "Metal") == 0) {
     }
 
 #if defined(ENABLE_METAL)
-    if (strcmp(renderer_api_name, "Metal") == 0) {
+    if (strcmp(gfx_api_name, "OpenGL") == 0) {
+        SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
+        ctx = SDL_GL_CreateContext(wnd);
+        SDL_GL_SetSwapInterval(1);
+    } else {
         renderer  = SDL_CreateRenderer(wnd, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
         if (renderer == NULL)
         {
@@ -194,19 +200,16 @@ if (strcmp(renderer_api_name, "Metal") == 0) {
 
         SDL_GetRendererOutputSize(renderer, &window_width, &window_height);
         Metal_SetRenderer(renderer);
-    } else {
-        SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
-        ctx = SDL_GL_CreateContext(wnd);
-        SDL_GL_SetSwapInterval(1);
     }
 #else
+    SDL_GL_GetDrawableSize(wnd, &window_width, &window_height);
     ctx = SDL_GL_CreateContext(wnd);
     SDL_GL_SetSwapInterval(1);
 #endif
 
     SohImGui::WindowImpl window_impl;
     window_impl.backend = SohImGui::Backend::SDL;
-    window_impl.sdl = { wnd, ctx, strcmp(renderer_api_name, "Metal") == 0 };
+    window_impl.sdl = { wnd, ctx, strcmp(gfx_api_name, "OpenGL") == 0 ? SohImGui::SDLGfxApi::OpenGL : SohImGui::SDLGfxApi::Metal  };
     SohImGui::Init(window_impl);
 
     for (size_t i = 0; i < sizeof(windows_scancode_table) / sizeof(SDL_Scancode); i++) {
