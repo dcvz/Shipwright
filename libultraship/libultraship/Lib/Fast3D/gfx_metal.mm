@@ -56,6 +56,7 @@ static struct State {
 
 static int current_tile;
 static uint32_t current_texture_ids[2];
+std::map<std::pair<uint64_t, uint32_t>, struct ShaderProgramMetal> metal_shader_program_pool;
 
 // MARK: - Objc Helpers
 
@@ -82,7 +83,6 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 + (instancetype)stringFromShader:(uint32_t)item withAlpha:(bool)withAlpha onlyAlpha:(bool)onlyAlpha inputsHaveAlpha:(bool)inputsHaveAlpha hintSingleElement:(bool)hintSingleElement;
 
 + (instancetype)stringHashFromShaderIds:(uint64_t)id1 id2:(uint32_t)id2;
-+ (instancetype)stringHashFromShaderProgram:(ShaderProgramMetal)program;
 @end
 
 @implementation NSString (Shader)
@@ -148,10 +148,6 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     return [NSString stringWithFormat:@"%llu-%i", id1, id2];
 }
 
-+ (instancetype)stringHashFromShaderProgram:(struct ShaderProgramMetal)program {
-    return [NSString stringWithFormat:@"%llu-%i", program.shader_id0, program.shader_id1];
-}
-
 @end
 
 @interface NSMutableString (Formatting)
@@ -212,14 +208,12 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
 @interface GfxShaderProgram: NSObject
 @property (nonatomic, strong) id<MTLRenderPipelineState> pipeline;
-@property (nonatomic, strong) NSData* shaderProgram;
 @end
 
 @implementation GfxShaderProgram
 - (instancetype)initWithPipelineState:(id<MTLRenderPipelineState>)pipeline {
     if ((self = [super init])) {
         _pipeline = pipeline;
-        _shaderProgram = NULL;
     }
     return self;
 }
@@ -644,7 +638,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
         }
     }
 
-    GfxShaderProgram *shaderProgram = _shaderProgramCache[[NSString stringHashFromShaderProgram:*state.shader_program]];
+    GfxShaderProgram *shaderProgram = _shaderProgramCache[[NSString stringHashFromShaderIds:state.shader_program->shader_id0 id2:state.shader_program->shader_id1]];
 
     [_currentCommandEncoder setRenderPipelineState:shaderProgram.pipeline];
     [_currentCommandEncoder setTriangleFillMode:MTLTriangleFillModeFill];
@@ -772,25 +766,27 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         NSLog(@"Failed to created pipeline state");
     }
 
-    GfxShaderProgram *program = [[GfxShaderProgram alloc] initWithPipelineState:pipelineState];
-    struct ShaderProgramMetal shaderProgram = {
-        shader_id0,
-        shader_id1,
-        stride / sizeof(float),
-        cc_features.num_inputs,
-        { cc_features.used_textures[0], cc_features.used_textures[1] }
-    };
-    program.shaderProgram = [NSData dataWithBytes:&shaderProgram length:sizeof(struct ShaderProgramMetal)];
-    metal_ctx.shaderProgramCache[[NSString stringHashFromShaderProgram:shaderProgram]] = program;
 
-    gfx_metal_load_shader((struct ShaderProgram *)[program.shaderProgram bytes]);
-    return (struct ShaderProgram *)([program.shaderProgram bytes]);
+    struct ShaderProgramMetal *prg = (struct ShaderProgramMetal *)calloc(1, sizeof(struct ShaderProgramMetal));
+    prg->shader_id0 = shader_id0;
+    prg->shader_id1 = shader_id1;
+    prg->used_textures[0] = cc_features.used_textures[0];
+    prg->used_textures[1] = cc_features.used_textures[1];
+    prg->num_inputs = cc_features.num_inputs;
+    prg->num_floats = stride / sizeof(float);
+
+    gfx_metal_load_shader((struct ShaderProgram *)prg);
+
+    metal_shader_program_pool.insert({std::make_pair(shader_id0, shader_id1), *prg});
+    GfxShaderProgram *program = [[GfxShaderProgram alloc] initWithPipelineState:pipelineState];
+    [metal_ctx.shaderProgramCache setValue:program forKey:[NSString stringHashFromShaderIds:shader_id0 id2:shader_id1]];
+
+    return (struct ShaderProgram *)prg;
 }
 
 static struct ShaderProgram* gfx_metal_lookup_shader(uint64_t shader_id0, uint32_t shader_id1) {
-    GfxShaderProgram *shaderProgram = metal_ctx.shaderProgramCache[[NSString stringHashFromShaderIds:shader_id0 id2:shader_id1]];
-
-    return shaderProgram == nil ? nullptr : (struct ShaderProgram *)[shaderProgram.shaderProgram bytes];
+    auto it = metal_shader_program_pool.find(std::make_pair(shader_id0, shader_id1));
+    return it == metal_shader_program_pool.end() ? nullptr : (struct ShaderProgram *)&it->second;
 }
 
 static void gfx_metal_shader_get_info(struct ShaderProgram *prg, uint8_t *num_inputs, bool used_textures[2]) {
