@@ -37,6 +37,10 @@ ifeq ($(UNAME), Darwin) #APPLE
 	CPPFLAGS += $(shell pkg-config --cflags sdl2 glew)
 endif
 
+ifeq ($(UNAME), Darwin) #APPLE
+	CPPFLAGS += $(shell pkg-config --cflags sdl2 glew) -framework OpenGL
+endif
+
 ifneq ($(DEBUG),0)
 	CXXFLAGS += -g -D_DEBUG
 	CFLAGS += -g -D_DEBUG

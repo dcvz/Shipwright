@@ -9,6 +9,7 @@ UNAMEM := $(shell uname -m)
 
 LIBULTRASHIP := ../libultraship/libultraship.a
 ZAPDUTILS := ../ZAPDTR/ZAPDUtils/ZAPDUtils.a
+LIBSTORM := ../StormLib/build/libstorm.a
 
 ASAN ?= 0
 DEBUG ?= 1
@@ -81,7 +82,6 @@ ifeq ($(UNAME), Linux) #LINUX
 endif
 
 LDDIRS := $(addprefix -L, \
-	../StormLib/build \
 	../libultraship/ \
 )
 
@@ -93,13 +93,13 @@ endif
 
 LDLIBS := \
 	$(ZAPDUTILS) \
+	$(LIBSTORM) \
 	$(addprefix -l, \
 	dl \
 	bz2 \
 	z \
 	pthread \
 	atomic \
-	storm \
 	ultraship \
 )
 
@@ -182,8 +182,6 @@ setup:
 	$(MAKE) mpq
 
 mpq:
-	cmake -B ../StormLib/build -S ../StormLib
-	cmake --build ../StormLib/build
 	$(MAKE) -C ../libultraship
 	$(MAKE) -C ../OTRExporter/OTRExporter
 	$(MAKE) -C ../ZAPDTR
@@ -196,7 +194,6 @@ distclean: clean
 	$(MAKE) clean -C ../libultraship
 	$(MAKE) clean -C ../OTRExporter/OTRExporter
 	$(MAKE) clean -C ../ZAPDTR
-	rm -rf ../StormLib/build
 
 clean:
 	rm -rf build $(TARGET)
