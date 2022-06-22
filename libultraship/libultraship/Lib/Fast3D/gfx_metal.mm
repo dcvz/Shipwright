@@ -206,19 +206,6 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 }
 @end
 
-@interface GfxShaderProgram: NSObject
-@property (nonatomic, strong) id<MTLRenderPipelineState> pipeline;
-@end
-
-@implementation GfxShaderProgram
-- (instancetype)initWithPipelineState:(id<MTLRenderPipelineState>)pipeline {
-    if ((self = [super init])) {
-        _pipeline = pipeline;
-    }
-    return self;
-}
-@end
-
 @interface GfxTexture: NSObject
 @property (nonatomic, strong) id<MTLTexture> texture;
 @property (nonatomic, strong) id<MTLSamplerState> sampler;
@@ -243,7 +230,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 
 @property (nonatomic, strong) NSMutableArray<GfxTexture *> *textures;
 @property (nonatomic, strong) NSMutableArray<GfxMetalBuffer *> *bufferCache;
-@property (nonatomic, strong) NSMutableDictionary<NSString *, GfxShaderProgram *> *shaderProgramCache;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, id<MTLRenderPipelineState>> *pipelineCache;
 @property (nonatomic, assign) NSTimeInterval lastBufferCachePurge;
 
 - (id<MTLDevice>)setupLayerDevice;
@@ -273,7 +260,7 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
         _currentDrawable = NULL;
         
         _bufferCache = [NSMutableArray array];
-        _shaderProgramCache = [NSMutableDictionary dictionary];
+        _pipelineCache = [NSMutableDictionary dictionary];
         _lastBufferCachePurge = [NSDate date].timeIntervalSince1970;
     }
     return self;
@@ -429,7 +416,9 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     // vertex shader
     [shaderSource appendNewLineString:@"vertex ProjectedVertex vertexShader(Vertex in [[stage_in]], constant float2 *viewportSizePointer [[buffer(1)]]) {"];
     [shaderSource appendNewLineString:@"    ProjectedVertex out;"];
-    [shaderSource appendNewLineString:@"    float2 viewportSize = float2(*viewportSizePointer);"];
+    if (features.used_textures[0] || features.used_textures[1]) {
+        [shaderSource appendNewLineString:@"    float2 viewportSize = float2(*viewportSizePointer);"];
+    }
     for (int i = 0; i < 2; i++) {
         if (features.used_textures[i]) {
             [shaderSource appendFormat:@"    out.texCoord%d = in.texCoord%d;\n", i, i];
@@ -638,9 +627,9 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
         }
     }
 
-    GfxShaderProgram *shaderProgram = _shaderProgramCache[[NSString stringHashFromShaderIds:state.shader_program->shader_id0 id2:state.shader_program->shader_id1]];
+    id<MTLRenderPipelineState> pipelineState = _pipelineCache[[NSString stringHashFromShaderIds:state.shader_program->shader_id0 id2:state.shader_program->shader_id1]];
 
-    [_currentCommandEncoder setRenderPipelineState:shaderProgram.pipeline];
+    [_currentCommandEncoder setRenderPipelineState:pipelineState];
     [_currentCommandEncoder setTriangleFillMode:MTLTriangleFillModeFill];
     [_currentCommandEncoder setCullMode:MTLCullModeNone];
     [_currentCommandEncoder setFrontFacingWinding:MTLWindingCounterClockwise];
@@ -766,7 +755,6 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         NSLog(@"Failed to created pipeline state");
     }
 
-
     struct ShaderProgramMetal *prg = (struct ShaderProgramMetal *)calloc(1, sizeof(struct ShaderProgramMetal));
     prg->shader_id0 = shader_id0;
     prg->shader_id1 = shader_id1;
@@ -778,8 +766,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
     gfx_metal_load_shader((struct ShaderProgram *)prg);
 
     metal_shader_program_pool.insert({std::make_pair(shader_id0, shader_id1), *prg});
-    GfxShaderProgram *program = [[GfxShaderProgram alloc] initWithPipelineState:pipelineState];
-    [metal_ctx.shaderProgramCache setValue:program forKey:[NSString stringHashFromShaderIds:shader_id0 id2:shader_id1]];
+    [metal_ctx.pipelineCache setValue:pipelineState forKey:[NSString stringHashFromShaderIds:shader_id0 id2:shader_id1]];
 
     return (struct ShaderProgram *)prg;
 }
