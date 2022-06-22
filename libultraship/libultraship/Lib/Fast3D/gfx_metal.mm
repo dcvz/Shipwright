@@ -41,12 +41,6 @@ struct FrameUniforms {
     simd::float1 noiseScale;
 };
 
-struct GfxTexture {
-    id<MTLTexture> texture;
-    id<MTLSamplerState> sampler;
-    bool linear_filtering;
-};
-
 static struct State {
     struct ShaderProgramMetal *shader_program;
     FilteringMode current_filter_mode = THREE_POINT;
@@ -60,7 +54,6 @@ static struct State {
     FrameUniforms frame_uniforms;
 } state;
 
-static std::vector<struct GfxTexture> textures;
 static int current_tile;
 static uint32_t current_texture_ids[2];
 
@@ -232,6 +225,15 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 }
 @end
 
+@interface GfxTexture: NSObject
+@property (nonatomic, strong) id<MTLTexture> texture;
+@property (nonatomic, strong) id<MTLSamplerState> sampler;
+@property (nonatomic, assign) bool linear_filtering;
+@end
+
+@implementation GfxTexture
+@end
+
 @interface GfxMetalContext : NSObject
 // Elements that only need to be setup once
 @property (nonatomic) SDL_Renderer* renderer;
@@ -245,8 +247,9 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
 @property (nonatomic, strong) MTLRenderPassDescriptor* currentRenderPass;
 @property (nonatomic, strong) id<CAMetalDrawable> currentDrawable;
 
+@property (nonatomic, strong) NSMutableArray<GfxTexture *> *textures;
 @property (nonatomic, strong) NSMutableArray<GfxMetalBuffer *> *bufferCache;
-@property (nonatomic, strong) NSMutableDictionary *shaderProgramCache;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, GfxShaderProgram *> *shaderProgramCache;
 @property (nonatomic, assign) NSTimeInterval lastBufferCachePurge;
 
 - (id<MTLDevice>)setupLayerDevice;
@@ -636,8 +639,8 @@ static MTLSamplerAddressMode gfx_cm_to_metal(uint32_t val) {
     
     for (int i = 0; i < 2; i++) {
         if (state.shader_program->used_textures[i]) {
-            [_currentCommandEncoder setFragmentTexture:textures[i].texture atIndex:i];
-            [_currentCommandEncoder setFragmentSamplerState:textures[i].sampler atIndex:i];
+            [_currentCommandEncoder setFragmentTexture:_textures[i].texture atIndex:i];
+            [_currentCommandEncoder setFragmentSamplerState:_textures[i].sampler atIndex:i];
         }
     }
 
@@ -798,8 +801,9 @@ static void gfx_metal_shader_get_info(struct ShaderProgram *prg, uint8_t *num_in
 }
 
 static uint32_t gfx_metal_new_texture(void) {
-    textures.resize(textures.size() + 1);
-    return (uint32_t)(textures.size() - 1);
+    GfxTexture *newTexture = [GfxTexture new];
+    [metal_ctx.textures addObject:newTexture];
+    return [metal_ctx.textures count];
 }
 
 static void gfx_metal_delete_texture(uint32_t texID) {
@@ -812,7 +816,7 @@ static void gfx_metal_select_texture(int tile, uint32_t texture_id) {
 }
 
 static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, uint32_t height) {
-    GfxTexture *texture_data = &textures[current_texture_ids[current_tile]];
+    GfxTexture *texture_data = metal_ctx.textures[current_texture_ids[current_tile]];
     
     MTLTextureDescriptor *textureDescriptor = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:width height:height mipmapped:YES];
     
@@ -820,23 +824,23 @@ static void gfx_metal_upload_texture(const uint8_t *rgba32_buf, uint32_t width, 
     textureDescriptor.mipmapLevelCount = 1;
     textureDescriptor.sampleCount = 1;
     
-    texture_data->texture = [metal_ctx.device newTextureWithDescriptor:textureDescriptor];
+    texture_data.texture = [metal_ctx.device newTextureWithDescriptor:textureDescriptor];
     
     MTLRegion region = MTLRegionMake2D(0, 0, width, height);
     NSUInteger bytesPerPixel = 4;
-    [texture_data->texture replaceRegion:region mipmapLevel:0 withBytes:rgba32_buf bytesPerRow:width * bytesPerPixel];
+    [texture_data.texture replaceRegion:region mipmapLevel:0 withBytes:rgba32_buf bytesPerRow:width * bytesPerPixel];
 }
 
 static void gfx_metal_set_sampler_parameters(int tile, bool linear_filter, uint32_t cms, uint32_t cmt) {
-    GfxTexture *texture_data = &textures[current_texture_ids[tile]];
-    texture_data->linear_filtering = linear_filter;
+    GfxTexture *texture_data = metal_ctx.textures[current_texture_ids[tile]];
+    texture_data.linear_filtering = linear_filter;
     
     // This function is called twice per texture, the first one only to set default values.
     // Maybe that could be skipped? Anyway, make sure to release the first default sampler
     // state before setting the actual one.
     //   [texture_data->sampler release];
     
-    texture_data->sampler = [metal_ctx sampleStateUsingLinearFilter:linear_filter filteringMode:state.current_filter_mode cms:cms cmt:cmt];
+    texture_data.sampler = [metal_ctx sampleStateUsingLinearFilter:linear_filter filteringMode:state.current_filter_mode cms:cms cmt:cmt];
 }
 
 static void gfx_metal_set_depth_test_and_mask(bool depth_test, bool depth_mask) {
