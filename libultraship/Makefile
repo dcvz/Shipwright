@@ -18,7 +18,13 @@ WARN := -Wall -Wextra -Werror \
 	-Wno-parentheses \
 	-Wno-narrowing \
 	-Wno-missing-field-initializers \
-	-Wno-error=multichar
+	-Wno-error=multichar \
+	-Wno-unused-command-line-argument \
+	-Wno-unused-private-field \
+	-Wno-deprecated-copy-with-user-provided-copy \
+	-Wno-unknown-pragmas \
+	-Wno-unknown-warning-option \
+	-Wno-delete-non-abstract-non-virtual-dtor
 
 CWARN :=
 CXXWARN := -Wno-deprecated-enum-enum-conversion
