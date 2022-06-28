@@ -17,7 +17,7 @@ else
 endif
 
 INC := -I ZAPD -I lib/elfio -I lib/libgfxd -I lib/tinyxml2 -I ZAPDUtils
-CXXFLAGS := -fpic -std=c++17 -Wall -Wextra -fno-omit-frame-pointer
+CXXFLAGS := -fpic -std=c++17 -Wall -Wextra -Wno-c++11-narrowing -fno-omit-frame-pointer
 OPTFLAGS :=
 
 ifneq ($(DEBUG),0)

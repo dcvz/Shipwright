@@ -13,7 +13,8 @@ WARN := -Wall -Wextra -Werror \
 	-Wno-unused-parameter \
 	-Wno-unused-function \
 	-Wno-unused-variable \
-	-Wno-error=multichar
+	-Wno-error=multichar \
+	-Wno-missing-braces
 
 
 CXXFLAGS := $(WARN) -std=c++17 
