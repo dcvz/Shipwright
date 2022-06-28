@@ -16,10 +16,13 @@ DEBUG ?= 1
 OPTFLAGS ?= -O0
 LTO ?= 0
 
+
+# clang doesn't know about -fno-toplevel-reorder, this might still be wanted for gcc
 WARN := \
 	-Wno-return-type \
 	-funsigned-char \
-	-fno-stack-protector -fno-common -fno-zero-initialized-in-bss -fno-strict-aliasing -fno-inline-functions -fno-inline-small-functions -fno-toplevel-reorder -ffreestanding -fwrapv \
+	-fno-stack-protector -fno-common -fno-zero-initialized-in-bss -fno-strict-aliasing -fno-inline-functions -fno-inline-small-functions -ffreestanding -fwrapv \
+	-Wno-implicit-function-declaration -Wno-int-to-void-pointer-cast -Wno-int-to-pointer-cast -Wno-c++11-narrowing \
 
 CXXFLAGS := $(WARN) -std=c++20 -D_GNU_SOURCE -fpermissive -no-pie -nostdlib
 CFLAGS := $(WARN) -std=c99 -D_GNU_SOURCE -no-pie -nostdlib
@@ -91,6 +94,7 @@ ifeq ($(UNAME), Linux) #LINUX
 )
 endif
 
+#clang doesn't have libatomic
 LDLIBS := \
 	$(ZAPDUTILS) \
 	$(LIBSTORM) \
@@ -99,7 +103,6 @@ LDLIBS := \
 	bz2 \
 	z \
 	pthread \
-	atomic \
 	ultraship \
 )
 
@@ -116,7 +119,7 @@ endif
 
 ifeq ($(UNAME), Darwin) #APPLE
 LDLIBS += \
-	$(addprefix -framework, \
+	$(addprefix -framework , \
 	OpenGL \
 ) \
 	$(shell sdl2-config --libs) $(shell pkg-config --libs glew)
@@ -207,8 +210,9 @@ build/%.o: %.c
 # make soh depend on libultraship
 $(TARGET): $(LIBULTRASHIP)
 
+# clang doesn't work with -fuse-ld=lld, let's fix this in the next commit
 $(TARGET): $(O_FILES)
-	$(CXX) $^ -o $@ $(LDFLAGS) -fuse-ld=$(LD) $(LDDIRS) $(LDLIBS)
+	$(CXX) $^ -o $@ $(LDFLAGS) $(LDDIRS) $(LDLIBS)
 
 -include $(D_FILES)
 

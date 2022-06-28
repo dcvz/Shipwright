@@ -6,6 +6,7 @@
 #include <functions.h>
 #include <variables.h>
 #include <stdarg.h>
+#include <string.h>
 #include <z64.h>
 #include <ultra64/gbi.h>
 #include <ultra64/gs2dex.h>

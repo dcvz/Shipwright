@@ -1,4 +1,5 @@
 #include "z64.h"
+#include <math.h>
 
 void guMtxF2L(float mf[4][4], Mtx* m) {
     unsigned int r, c;

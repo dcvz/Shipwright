@@ -60,8 +60,10 @@ void Locale_ResetRegion(void);
 u32 func_80001F48(void);
 u32 func_80001F8C(void);
 u32 Locale_IsRegionNative(void);
+#ifndef __clang__
 #ifndef __APPLE__
 void __assert(const char* exp, const char* file, s32 line);
+#endif
 #endif
 void isPrintfInit(void);
 void osSyncPrintfUnused(const char* fmt, ...);
