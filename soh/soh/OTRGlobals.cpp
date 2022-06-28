@@ -712,7 +712,7 @@ extern "C" SoundFontSample* ResourceMgr_LoadAudioSample(const char* path)
         sampleC->unk_bit26 = sample->unk_bit26;
         sampleC->unk_bit25 = sample->unk_bit25;
 
-        sampleC->book = new AdpcmBook[sample->book.books.size() * sizeof(int16_t)];
+        sampleC->book = new AdpcmBook[sample->book.books.size() * sizeof(int16_t) + 1];
         sampleC->book->npredictors = sample->book.npredictors;
         sampleC->book->order = sample->book.order;
 
@@ -748,7 +748,7 @@ extern "C" SoundFont* ResourceMgr_LoadAudioSoundFont(const char* path) {
     }
     else
     {
-        SoundFont* soundFontC = (SoundFont*)malloc(sizeof(SoundFont));
+        SoundFont* soundFontC = (SoundFont*)malloc(ALIGN16(sizeof(SoundFont)));
 
         soundFontC->fntIndex = soundFont->id;
         soundFontC->numDrums = soundFont->drums.size();
