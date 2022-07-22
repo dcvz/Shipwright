@@ -43,7 +43,7 @@ namespace Ship {
     }
 
     int CoreAudioPlayer::Buffered(void) {
-        return 1024;
+        return 4096;
     }
 
     int CoreAudioPlayer::GetDesiredBuffered(void) {
