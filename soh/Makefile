@@ -121,6 +121,8 @@ LDLIBS += \
 	$(addprefix -framework , \
 	OpenGL \
 	Foundation \
+	CoreFoundation \
+	AudioToolbox \
 ) \
 	$(shell sdl2-config --libs) $(shell pkg-config --libs glew)
 endif
