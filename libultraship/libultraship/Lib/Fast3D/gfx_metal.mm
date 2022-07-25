@@ -288,7 +288,7 @@ void Metal_SetRenderer(SDL_Renderer* renderer) {
 
 bool Metal_Init() {
     mctx.layer = (__bridge CAMetalLayer*)SDL_RenderGetMetalLayer(mctx.renderer);
-    mctx.layer.pixelFormat = MTLPixelFormatRGBA8Unorm;
+    mctx.layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
 
     mctx.device = mctx.layer.device;
     mctx.command_queue = [mctx.device newCommandQueue];
@@ -563,9 +563,9 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
             if (cc_features.opt_invisible) {
                 append_line(buf, &len, "    texel.w = 0.0;");
             }
-            append_line(buf, &len, "    return texel;");
+            append_line(buf, &len, "    return texel.bgra;");
         } else {
-            append_line(buf, &len, "    return float4(texel, 1.0);");
+            append_line(buf, &len, "    return float4(texel, 1.0).bgra;");
         }
 
         append_line(buf, &len, "}");
