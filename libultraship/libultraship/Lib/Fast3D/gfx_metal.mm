@@ -587,7 +587,7 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
         pipelineDescriptor.fragmentFunction = [library newFunctionWithName:@"fragmentShader"];
         pipelineDescriptor.vertexDescriptor = vertexDescriptor;
 
-        pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm;
+        pipelineDescriptor.colorAttachments[0].pixelFormat = MTLPixelFormatBGRA8Unorm;
         pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
         if (cc_features.opt_alpha) {
             pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
