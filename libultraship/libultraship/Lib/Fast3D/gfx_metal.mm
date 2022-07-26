@@ -563,9 +563,9 @@ static struct ShaderProgram* gfx_metal_create_and_load_new_shader(uint64_t shade
             if (cc_features.opt_invisible) {
                 append_line(buf, &len, "    texel.w = 0.0;");
             }
-            append_line(buf, &len, "    return texel.bgra;");
+            append_line(buf, &len, "    return texel;");
         } else {
-            append_line(buf, &len, "    return float4(texel, 1.0).bgra;");
+            append_line(buf, &len, "    return float4(texel, 1.0);");
         }
 
         append_line(buf, &len, "}");
@@ -855,7 +855,7 @@ static void gfx_metal_update_framebuffer_parameters(int fb_id, uint32_t width, u
         texDescriptor.height = height;
         texDescriptor.sampleCount = msaa_level;
         texDescriptor.mipmapLevelCount = 1;
-        texDescriptor.pixelFormat = MTLPixelFormatRGBA8Unorm;
+        texDescriptor.pixelFormat = MTLPixelFormatBGRA8Unorm;
         texDescriptor.usage = (render_target ? MTLTextureUsageRenderTarget : 0) | (msaa_level <= 1 ? MTLTextureUsageShaderRead : 0);
 
         tex.texture = [mctx.device newTextureWithDescriptor:texDescriptor];
