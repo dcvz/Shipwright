@@ -825,11 +825,11 @@ NatureAmbienceDataIO sNatureAmbienceDataIO[20] = {
 };
 
 u32 sOcarinaAllowedBtnMask = (BTN_A | BTN_CUP | BTN_CDOWN | BTN_CLEFT | BTN_CRIGHT);
-s32 sOcarinaD5BtnMap = BTN_CUP;
-s32 sOcarinaB4BtnMap = BTN_CLEFT;
-s32 sOcarinaA4BtnMap = BTN_CRIGHT;
-s32 sOcarinaF4BtnMap = BTN_CDOWN;
-s32 sOcarinaD4BtnMap = BTN_A;
+s32 sOcarinaABtnMap = BTN_A;
+s32 sOcarinaCUPBtnMap = BTN_CUP;
+s32 sOcarinaCDownBtnMap = BTN_CDOWN;
+s32 sOcarinaCLeftBtnMap = BTN_CLEFT;
+s32 sOcarinaCRightBtnMap = BTN_CRIGHT;
 u8 sOcarinaInpEnabled = 0;
 s8 D_80130F10 = 0; // "OCA", ocarina active?
 u8 sCurOcarinaBtnVal = 0xFF;
@@ -1013,9 +1013,9 @@ OcarinaNote sOcarinaSongs[OCARINA_SONG_MAX][20] = {
 
 OcarinaNote* sPlaybackSong = sOcarinaSongs[0];
 u8 sFrogsSongNotes[14] = {
-    OCARINA_NOTE_D4, OCARINA_NOTE_B4, OCARINA_NOTE_A4, OCARINA_NOTE_F4, OCARINA_NOTE_B4,
-    OCARINA_NOTE_A4, OCARINA_NOTE_F4, OCARINA_NOTE_D4, OCARINA_NOTE_F4, OCARINA_NOTE_D4,
-    OCARINA_NOTE_F4, OCARINA_NOTE_A4, OCARINA_NOTE_B4, OCARINA_NOTE_D4,
+    OCARINA_NOTE_A,       OCARINA_NOTE_C_LEFT,  OCARINA_NOTE_C_RIGHT, OCARINA_NOTE_C_DOWN, OCARINA_NOTE_C_LEFT,
+    OCARINA_NOTE_C_RIGHT, OCARINA_NOTE_C_DOWN,  OCARINA_NOTE_A,       OCARINA_NOTE_C_DOWN, OCARINA_NOTE_A,
+    OCARINA_NOTE_C_DOWN,  OCARINA_NOTE_C_RIGHT, OCARINA_NOTE_C_LEFT,  OCARINA_NOTE_A,
 };
 u8* gFrogsSongPtr = sFrogsSongNotes;
 u8 sRecordingState = 0;
@@ -1044,124 +1044,124 @@ OcarinaSongInfo gOcarinaSongNotes[OCARINA_SONG_MAX] = {
     // Minuet
     { 6,
       {
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_D5,
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_A4,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_UP,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_RIGHT,
       } },
     // Bolero
     { 8,
       {
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_F4,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_DOWN,
       } },
     // Serenade
     { 5,
       {
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_B4,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_LEFT,
       } },
     // Requiem
     { 6,
       {
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_D4,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_A,
       } },
     // Nocturne
     { 7,
       {
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_F4,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_DOWN,
       } },
     // Prelude
     { 6,
       {
-          OCARINA_NOTE_D5,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_D5,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_D5,
+          OCARINA_NOTE_C_UP,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_UP,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_UP,
       } },
     // Sarias
     { 6,
       {
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_B4,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_LEFT,
       } },
     // Epona
     { 6,
       {
-          OCARINA_NOTE_D5,
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_D5,
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_A4,
+          OCARINA_NOTE_C_UP,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_UP,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_RIGHT,
       } },
     // Lullaby
     { 6,
       {
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_D5,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_B4,
-          OCARINA_NOTE_D5,
-          OCARINA_NOTE_A4,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_UP,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_LEFT,
+          OCARINA_NOTE_C_UP,
+          OCARINA_NOTE_C_RIGHT,
       } },
     // Suns
     { 6,
       {
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_D5,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_D5,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_C_UP,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_C_UP,
       } },
     // Song of Time
     { 6,
       {
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_A4,
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_F4,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_C_RIGHT,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_DOWN,
       } },
     // Storms
     { 6,
       {
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_D5,
-          OCARINA_NOTE_D4,
-          OCARINA_NOTE_F4,
-          OCARINA_NOTE_D5,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_C_UP,
+          OCARINA_NOTE_A,
+          OCARINA_NOTE_C_DOWN,
+          OCARINA_NOTE_C_UP,
       } },
     // Scarecrow
     { 8, { 0, 0, 0, 0, 0, 0, 0, 0 } },
@@ -1247,49 +1247,24 @@ void func_800F56A8(void);
 void Audio_PlayNatureAmbienceSequence(u8 natureAmbienceId);
 s32 Audio_SetGanonDistVol(u8 targetVol);
 
-// Right stick as virtual C buttons
-#define RSTICK_UP    0x100000
-#define RSTICK_DOWN  0x200000
-#define RSTICK_LEFT  0x400000
-#define RSTICK_RIGHT 0x800000
-
-// Function originally not called, so repurposing for control mapping
-void Audio_OcaUpdateBtnMap(bool customControls, bool dpad, bool rStick) {
-    if (customControls) {
-        sOcarinaD5BtnMap = CVar_GetS32("gOcarinaD5BtnMap", BTN_CUP);
-        sOcarinaB4BtnMap = CVar_GetS32("gOcarinaB4BtnMap", BTN_CLEFT);
-        sOcarinaA4BtnMap = CVar_GetS32("gOcarinaA4BtnMap", BTN_CRIGHT);
-        sOcarinaF4BtnMap = CVar_GetS32("gOcarinaF4BtnMap", BTN_CDOWN);
-        sOcarinaD4BtnMap = CVar_GetS32("gOcarinaD4BtnMap", BTN_A);
-    } else {
-        sOcarinaD5BtnMap = BTN_CUP;
-        sOcarinaB4BtnMap = BTN_CLEFT;
-        sOcarinaA4BtnMap = BTN_CRIGHT;
-        sOcarinaF4BtnMap = BTN_CDOWN;
-        sOcarinaD4BtnMap = BTN_A;
-    }
-
+// Function originally not called, so repurposing for DPad input
+void func_800EC960(u8 dpad) {
     if (dpad) {
-        sOcarinaD5BtnMap |= BTN_DUP;
-        sOcarinaB4BtnMap |= BTN_DLEFT;
-        sOcarinaA4BtnMap |= BTN_DRIGHT;
-        sOcarinaF4BtnMap |= BTN_DDOWN;
+        sOcarinaAllowedBtnMask =
+            (BTN_A | BTN_CUP | BTN_CDOWN | BTN_CLEFT | BTN_CRIGHT | BTN_DUP | BTN_DDOWN | BTN_DLEFT | BTN_DRIGHT);
+        sOcarinaABtnMap = BTN_A;
+        sOcarinaCUPBtnMap = BTN_CUP | BTN_DUP;
+        sOcarinaCDownBtnMap = BTN_CDOWN | BTN_DDOWN;
+        sOcarinaCLeftBtnMap = BTN_CLEFT | BTN_DLEFT;
+        sOcarinaCRightBtnMap = BTN_CRIGHT | BTN_DRIGHT;
+    } else {
+        sOcarinaAllowedBtnMask = (BTN_A | BTN_CUP | BTN_CDOWN | BTN_CLEFT | BTN_CRIGHT);
+        sOcarinaABtnMap = BTN_A;
+        sOcarinaCUPBtnMap = BTN_CUP;
+        sOcarinaCDownBtnMap = BTN_CDOWN;
+        sOcarinaCLeftBtnMap = BTN_CLEFT;
+        sOcarinaCRightBtnMap = BTN_CRIGHT;
     }
-
-    if (rStick) {
-        sOcarinaD5BtnMap |= RSTICK_UP;
-        sOcarinaB4BtnMap |= RSTICK_LEFT;
-        sOcarinaA4BtnMap |= RSTICK_RIGHT;
-        sOcarinaF4BtnMap |= RSTICK_DOWN;
-    }
-
-    sOcarinaAllowedBtnMask = (
-        sOcarinaD5BtnMap |
-        sOcarinaB4BtnMap |
-        sOcarinaA4BtnMap |
-        sOcarinaF4BtnMap |
-        sOcarinaD4BtnMap
-    );
 }
 
 void Audio_GetOcaInput(void) {
@@ -1303,23 +1278,6 @@ void Audio_GetOcaInput(void) {
     sPrevOcarinaBtnPress = sp18;
     sCurOcaStick.x = input->rel.stick_x;
     sCurOcaStick.y = input->rel.stick_y;
-
-    f32 rstick_x = input->cur.cam_x;
-    f32 rstick_y = input->cur.cam_y;
-    printf("%f %f\n", rstick_x, rstick_y);
-    const f32 sensitivity = 500;
-    if (rstick_x > sensitivity) {
-        sCurOcarinaBtnPress |= RSTICK_RIGHT;
-    }
-    if (rstick_x < -sensitivity) {
-        sCurOcarinaBtnPress |= RSTICK_LEFT;
-    }
-    if (rstick_y > sensitivity) {
-        sCurOcarinaBtnPress |= RSTICK_UP;
-    }
-    if (rstick_y < -sensitivity) {
-        sCurOcarinaBtnPress |= RSTICK_DOWN;
-    }
 }
 
 f32 Audio_OcaAdjStick(s8 inp) {
@@ -1537,17 +1495,7 @@ void func_800ED200(void) {
     u8 j;
     u8 k;
 
-    u32 disableSongBtnMap;
-    if (CVar_GetS32("gCustomOcarinaControls", 0)) {
-        disableSongBtnMap = CVar_GetS32("gOcarinaDisableBtnMap", BTN_L);
-    } else {
-        disableSongBtnMap = BTN_L;
-    }
-
-    if (
-        CHECK_BTN_ANY(sCurOcarinaBtnPress, disableSongBtnMap)
-        && CHECK_BTN_ANY(sCurOcarinaBtnPress, sOcarinaAllowedBtnMask)
-    ) {
+    if (CHECK_BTN_ANY(sCurOcarinaBtnPress, BTN_L) && CHECK_BTN_ANY(sCurOcarinaBtnPress, sOcarinaAllowedBtnMask)) {
         func_800ECC04((u16)D_80130F3C);
         return;
     }
@@ -1600,9 +1548,7 @@ void func_800ED200(void) {
 
 void func_800ED458(s32 arg0) {
     u32 phi_v1_2;
-    bool customControls = CVar_GetS32("gCustomOcarinaControls", 0);
-    bool dpad = CVar_GetS32("gDpadOcarina", 0);
-    bool rStick = CVar_GetS32("gRStickOcarina", 0);
+    bool dpad = CVar_GetS32("gDpadOcarinaText", 0);
 
     if (D_80130F3C != 0 && sOcarinaDropInputTimer != 0) {
         sOcarinaDropInputTimer--;
@@ -1623,47 +1569,35 @@ void func_800ED458(s32 arg0) {
             D_8016BA18 &= phi_v1_2;
         }
 
-        Audio_OcaUpdateBtnMap(customControls, dpad, rStick);
-        if (D_8016BA18 & sOcarinaD4BtnMap) {
-            osSyncPrintf("Presss NA_KEY_D4 %08x\n", sOcarinaD4BtnMap);
+        func_800EC960(dpad);
+        if (D_8016BA18 & sOcarinaABtnMap) {
+            osSyncPrintf("Presss NA_KEY_D4 %08x\n", sOcarinaABtnMap);
             sCurOcarinaBtnVal = 2;
             sCurOcarinaBtnIdx = 0;
-        } else if (D_8016BA18 & sOcarinaF4BtnMap) {
-            osSyncPrintf("Presss NA_KEY_F4 %08x\n", sOcarinaF4BtnMap);
+        } else if (D_8016BA18 & sOcarinaCDownBtnMap) {
+            osSyncPrintf("Presss NA_KEY_F4 %08x\n", sOcarinaCDownBtnMap);
             sCurOcarinaBtnVal = 5;
             sCurOcarinaBtnIdx = 1;
-        } else if (D_8016BA18 & sOcarinaA4BtnMap) {
-            osSyncPrintf("Presss NA_KEY_A4 %08x\n", sOcarinaA4BtnMap);
+        } else if (D_8016BA18 & sOcarinaCRightBtnMap) {
+            osSyncPrintf("Presss NA_KEY_A4 %08x\n", sOcarinaCRightBtnMap);
             sCurOcarinaBtnVal = 9;
             sCurOcarinaBtnIdx = 2;
-        } else if (D_8016BA18 & sOcarinaB4BtnMap) {
-            osSyncPrintf("Presss NA_KEY_B4 %08x\n", sOcarinaA4BtnMap);
+        } else if (D_8016BA18 & sOcarinaCLeftBtnMap) {
+            osSyncPrintf("Presss NA_KEY_B4 %08x\n", sOcarinaCRightBtnMap);
             sCurOcarinaBtnVal = 0xB;
             sCurOcarinaBtnIdx = 3;
-        } else if (D_8016BA18 & sOcarinaD5BtnMap) {
-            osSyncPrintf("Presss NA_KEY_D5 %08x\n", sOcarinaD5BtnMap);
+        } else if (D_8016BA18 & sOcarinaCUPBtnMap) {
+            osSyncPrintf("Presss NA_KEY_D5 %08x\n", sOcarinaCUPBtnMap);
             sCurOcarinaBtnVal = 0xE;
             sCurOcarinaBtnIdx = 4;
         }
 
-        u32 noteSharpBtnMap;
-        if (customControls) {
-            noteSharpBtnMap = CVar_GetS32("gOcarinaSharpBtnMap", BTN_R);
-        } else {
-            noteSharpBtnMap = BTN_R;
-        }
-        if ((sCurOcarinaBtnVal != 0xFF) && (sCurOcarinaBtnPress & noteSharpBtnMap) && (sRecordingState != 2)) {
+        if (sCurOcarinaBtnVal != 0xFF && sCurOcarinaBtnPress & 0x10 && sRecordingState != 2) {
             sCurOcarinaBtnIdx += 0x80;
             sCurOcarinaBtnVal++;
         }
 
-        u32 noteFlatBtnMap;
-        if (customControls) {
-            noteFlatBtnMap = CVar_GetS32("gOcarinaFlatBtnMap", BTN_Z);
-        } else {
-            noteFlatBtnMap = BTN_Z;
-        }
-        if ((sCurOcarinaBtnVal != 0xFF) && (sCurOcarinaBtnPress & noteFlatBtnMap) && (sRecordingState != 2)) {
+        if ((sCurOcarinaBtnVal != 0xFF) && (sCurOcarinaBtnPress & 0x2000) && (sRecordingState != 2)) {
             sCurOcarinaBtnIdx += 0x40;
             sCurOcarinaBtnVal--;
         }
