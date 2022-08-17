@@ -1212,7 +1212,14 @@ static void gfx_sp_tri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx, bo
     bool use_alpha = (rdp.other_mode_l & (3 << 20)) == (G_BL_CLR_MEM << 20) && (rdp.other_mode_l & (3 << 16)) == (G_BL_1MA << 16);
     bool use_fog = (rdp.other_mode_l >> 30) == G_BL_CLR_FOG;
     bool texture_edge = (rdp.other_mode_l & CVG_X_ALPHA) == CVG_X_ALPHA;
-    bool use_noise = (rdp.other_mode_l & (3U << G_MDSFT_ALPHACOMPARE)) == G_AC_DITHER;
+
+    bool use_noise = ((rdp.other_mode_h & (3U << G_MDSFT_CYCLETYPE)) < G_CYC_COPY) &&
+        ((rdp.other_mode_l & (3U << G_MDSFT_ALPHACOMPARE)) == G_AC_DITHER ||
+         (rdp.other_mode_h & (3U << G_MDSFT_ALPHADITHER)) == G_AD_NOISE ||
+         (rdp.other_mode_h & (3U << G_MDSFT_COLORDITHER)) == G_CD_NOISE);
+
+//    updateNoiseTex |= (gDP.otherMode.cycleType < G_CYC_COPY) && (gDP.otherMode.colorDither == G_CD_NOISE || gDP.otherMode.alphaDither == G_AD_NOISE || gDP.otherMode.alphaCompare == G_AC_DITHER);
+
     bool use_2cyc = (rdp.other_mode_h & (3U << G_MDSFT_CYCLETYPE)) == G_CYC_2CYCLE;
     bool alpha_threshold = (rdp.other_mode_l & (3U << G_MDSFT_ALPHACOMPARE)) == G_AC_THRESHOLD;
     bool invisible = (rdp.other_mode_l & (3 << 24)) == (G_BL_0 << 24) && (rdp.other_mode_l & (3 << 20)) == (G_BL_CLR_MEM << 20);
@@ -1221,6 +1228,10 @@ static void gfx_sp_tri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx, bo
     if (texture_edge) {
         use_alpha = true;
     }
+
+//    if (use_noise) {
+//        SPDLOG_DEBUG("SETTING noise: {} - alpha: {}", use_noise, use_alpha);
+//    }
 
     if (use_alpha) cc_id |= (uint64_t)SHADER_OPT_ALPHA << CC_SHADER_OPT_POS;
     if (use_fog) cc_id |= (uint64_t)SHADER_OPT_FOG << CC_SHADER_OPT_POS;

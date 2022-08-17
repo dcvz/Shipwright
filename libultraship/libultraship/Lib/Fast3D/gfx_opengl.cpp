@@ -368,7 +368,7 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
         append_line(fs_buf, &fs_len, "uniform sampler2D uTex1;");
     }
 
-    if (cc_features.opt_alpha && cc_features.opt_noise) {
+    if (cc_features.opt_alpha || cc_features.opt_noise) {
         append_line(fs_buf, &fs_len, "uniform int frame_count;");
         append_line(fs_buf, &fs_len, "uniform float noise_scale;");
 
@@ -463,8 +463,24 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
         append_line(fs_buf, &fs_len, "if (texel.a > 0.19) texel.a = 1.0; else discard;");
     }
 
+//    if (cc_features.opt_alpha) {
+//        append_line(fs_buf, &fs_len, "texel.a *= floor(clamp(random(vec3(floor(gl_FragCoord.xy * noise_scale), float(frame_count))) + texel.a, 0.0, 1.0));");
+//    }
+//
+//    if (cc_features.opt_noise) {
+//        append_line(fs_buf, &fs_len, "texel.rgb *= floor(clamp(random(vec3(floor(gl_FragCoord.xy * noise_scale), float(frame_count))) + texel.rgb, 0.0, 1.0));");
+//    }
+
     if (cc_features.opt_alpha && cc_features.opt_noise) {
-        append_line(fs_buf, &fs_len, "texel.a *= floor(clamp(random(vec3(floor(gl_FragCoord.xy * noise_scale), float(frame_count))) + texel.a, 0.0, 1.0));");
+        append_line(fs_buf, &fs_len, "float threshold = 7.0 / 255.0 * (random(vec3(floor(gl_FragCoord.xy * noise_scale), float(frame_count))) - 0.5);");
+        append_line(fs_buf, &fs_len, "texel.a = round(clamp(texel.a + threshold, 0.0, 1.0) * 32.0) / 32.0;");
+    } else if (cc_features.opt_noise) {
+        append_line(fs_buf, &fs_len, "float thresholdR = 7.0 / 255.0 * (random(vec3(floor(gl_FragCoord.xy * noise_scale), float(frame_count))) - 0.5);");
+        append_line(fs_buf, &fs_len, "float thresholdG = 7.0 / 255.0 * (random(vec3(floor(gl_FragCoord.xy * noise_scale), float(frame_count))) - 0.5);");
+        append_line(fs_buf, &fs_len, "float thresholdB = 7.0 / 255.0 * (random(vec3(floor(gl_FragCoord.xy * noise_scale), float(frame_count))) - 0.5);");
+        append_line(fs_buf, &fs_len, "texel.r = round(clamp(texel.r + thresholdR, 0.0, 1.0) * 32.0) / 32.0;");
+        append_line(fs_buf, &fs_len, "texel.g = round(clamp(texel.g + thresholdG, 0.0, 1.0) * 32.0) / 32.0;");
+        append_line(fs_buf, &fs_len, "texel.b = round(clamp(texel.b + thresholdB, 0.0, 1.0) * 32.0) / 32.0;");
     }
 
     if (cc_features.opt_grayscale) {
@@ -604,7 +620,7 @@ static struct ShaderProgram* gfx_opengl_create_and_load_new_shader(uint64_t shad
         glUniform1i(sampler_location, 1);
     }
 
-    if (cc_features.opt_alpha && cc_features.opt_noise) {
+    if (cc_features.opt_alpha || cc_features.opt_noise) {
         prg->frame_count_location = glGetUniformLocation(shader_program, "frame_count");
         prg->noise_scale_location = glGetUniformLocation(shader_program, "noise_scale");
         prg->used_noise = true;
