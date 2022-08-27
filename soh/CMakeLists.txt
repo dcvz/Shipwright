@@ -87,7 +87,7 @@ if (NOT TARGET libultraship)
 endif()
 
 if (NOT TARGET ZAPDUtils)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../ZAPDTR/ZAPDUtils ${CMAKE_BINARY_DIR}/ZAPDUtils)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libultraship/ZAPDTR/ZAPDUtils ${CMAKE_BINARY_DIR}/ZAPDUtils)
 endif()
 
 set(PROJECT_NAME soh)
@@ -1677,7 +1677,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE assets
 	${CMAKE_CURRENT_SOURCE_DIR}/../libultraship/libultraship/Lib/libjpeg/include/
 	${CMAKE_CURRENT_SOURCE_DIR}/../libultraship/libultraship/Lib/spdlog/include/
     ${CMAKE_CURRENT_SOURCE_DIR}/../libultraship/libultraship/Lib/Fast3D/U64/PR
-	${CMAKE_CURRENT_SOURCE_DIR}/../ZAPDTR/ZAPDUtils
+	${CMAKE_CURRENT_SOURCE_DIR}/../libultraship/ZAPDTR/ZAPDUtils
 	${SDL2-INCLUDE}
 	${CMAKE_CURRENT_SOURCE_DIR}/assets/
 	.
