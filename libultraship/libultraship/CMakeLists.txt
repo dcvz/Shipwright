@@ -400,7 +400,7 @@ set(ALL_FILES
 add_library(${PROJECT_NAME} STATIC ${ALL_FILES})
 
 if (NOT TARGET storm)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../StormLib ${CMAKE_BINARY_DIR}/StormLib EXCLUDE_FROM_ALL)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../StormLib ${CMAKE_BINARY_DIR}/StormLib EXCLUDE_FROM_ALL)
 endif()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
