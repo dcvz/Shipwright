@@ -31,6 +31,7 @@ extern GlobalContext* gGlobalCtx;
 
 #define CMD_REGISTER SohImGui::BindCmd
 
+uint32_t noUI;
 uint32_t giantLink;
 uint32_t minishLink;
 uint32_t paperLink;
@@ -541,7 +542,20 @@ static bool NoUIHandler(std::shared_ptr<Ship::Console> Console, const std::vecto
         return CMD_FAILED;
     }
 
-    // TODO: Implement
+    try {
+        noUI = std::stoi(args[1], nullptr, 10) == 0 ? 0 : 1;
+        /*Might fail if manually set during cutscenes & intro.
+        Usualy it should toggle UI off but if a cutscene start/end it should revert the UI itself, 
+        might cause issues only if set manually.
+        May need some tests nor a way to detect what the appropriate gameMode to set.
+        0 seem to be used only during gameplay.
+        1 seem to be used in cutscene & intro.*/
+        gSaveContext.gameMode = noUI; //No ui, used in cutscene & intro
+        return CMD_SUCCESS;
+    } catch (std::invalid_argument const& ex) {
+        SohImGui::console->SendErrorMessage("[SOH] No UI value must be a number.");
+        return CMD_FAILED;
+    }
 }
 
 static bool FreezeHandler(std::shared_ptr<Ship::Console> Console, const std::vector<std::string>& args) {
