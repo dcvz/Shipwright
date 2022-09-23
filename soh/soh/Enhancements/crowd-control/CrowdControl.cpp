@@ -239,14 +239,6 @@ void CrowdControl::ReceiveFromCrowdControl()
 
 uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
 
-    // Don't execute effect and don't advance timer when the player is paused.
-    if (gGlobalCtx != NULL) {
-        PauseContext pauseCtx = gGlobalCtx->pauseCtx;
-        if (pauseCtx.state > 0) {
-            return 0;
-        }
-    }
-
     // Don't execute effect and don't advance timer when the player is not in a proper loaded savefile
     // and when they're busy dying.
     if (gGlobalCtx == NULL || gGlobalCtx->gameOverCtx.state > 0 || gSaveContext.fileNum < 0 || gSaveContext.fileNum > 2) {
@@ -301,7 +293,8 @@ uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
         }
     }
 
-    if (player != NULL && !Player_InBlockingCsMode(gGlobalCtx, player) && gGlobalCtx->pauseCtx.state == 0) {
+    if (player != NULL && !Player_InBlockingCsMode(gGlobalCtx, player) && gGlobalCtx->pauseCtx.state == 0
+                                                                       && gGlobalCtx->msgCtx.msgMode == 0) {
         if (strcmp(effectId, "high_gravity") == 0) {
             CMD_EXECUTE("gravity 2");
             return 1;
