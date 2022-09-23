@@ -135,8 +135,9 @@ static bool LoadSceneHandler(std::shared_ptr<Ship::Console> Console, const std::
 }
 
 static bool RuppeHandler(std::shared_ptr<Ship::Console> Console, const std::vector<std::string>& args) {
-    if (args.size() < 2)
+    if (args.size() < 2) {
         return CMD_FAILED;
+    }
 
     int rupeeAmount;
     try {
