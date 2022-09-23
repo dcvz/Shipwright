@@ -557,13 +557,8 @@ static bool NoUIHandler(std::shared_ptr<Ship::Console> Console, const std::vecto
 }
 
 static bool FreezeHandler(std::shared_ptr<Ship::Console> Console, const std::vector<std::string>& args) {
-    Player* player = GET_PLAYER(gGlobalCtx);
-    if (PlayerGrounded(player)) {
-        func_80837C0C(gGlobalCtx, player, 3, 0, 0, 0, 0);
-        return CMD_SUCCESS;
-    }
-
-    return CMD_FAILED;
+    gSaveContext.pendingIceTrapCount++;
+    return CMD_SUCCESS;
 }
 
 static bool DefenseModifierHandler(std::shared_ptr<Ship::Console> Console, const std::vector<std::string>& args) {
