@@ -238,6 +238,14 @@ void CrowdControl::ReceiveFromCrowdControl()
 }
 
 uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
+
+    if (gGlobalCtx != NULL) {
+        PauseContext pauseCtx = gGlobalCtx->pauseCtx;
+        if (pauseCtx.state > 0) {
+            return 0;
+        }
+    }
+
     if (gGlobalCtx == NULL || gSaveContext.fileNum < 0 || gSaveContext.fileNum > 2) {
         return 0;
     }
