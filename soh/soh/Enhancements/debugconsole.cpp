@@ -134,7 +134,7 @@ static bool LoadSceneHandler(std::shared_ptr<Ship::Console> Console, const std::
     return CMD_SUCCESS;
 }
 
-static bool RuppeHandler(std::shared_ptr<Ship::Console> Console, const std::vector<std::string>& args) {
+static bool RupeeHandler(std::shared_ptr<Ship::Console> Console, const std::vector<std::string>& args) {
     if (args.size() < 2) {
         return CMD_FAILED;
     }
@@ -987,7 +987,7 @@ void DebugConsole_Init(void) {
 
     CMD_REGISTER("map",  { LoadSceneHandler, "Load up kak?" });
 
-    CMD_REGISTER("rupee", { RuppeHandler, "Set your rupee counter.", {
+    CMD_REGISTER("rupee", { RupeeHandler, "Set your rupee counter.", {
         {"amount", Ship::ArgumentType::NUMBER }
     }});
 

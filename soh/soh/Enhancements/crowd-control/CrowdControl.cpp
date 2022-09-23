@@ -92,7 +92,7 @@ void CrowdControl::ReceiveFromCrowdControl()
 {
     printf("Waiting for a connection from Crowd Control...");
 
-    while (!connected && CVar_GetS32("gCrowdControl", 0) == 1) {
+    while (!connected && CVar_GetS32("gCrowdControl", 0)) {
         tcpsock = SDLNet_TCP_Open(&ip);
 
         if (tcpsock) {
@@ -102,7 +102,7 @@ void CrowdControl::ReceiveFromCrowdControl()
         }
     }
 
-    while (connected && CVar_GetS32("gCrowdControl", 0) == 1 && tcpsock) {
+    while (connected && CVar_GetS32("gCrowdControl", 0) && tcpsock) {
         int len = SDLNet_TCP_Recv(tcpsock, &received, 512);
 
         if (!len || !tcpsock || len == -1) {
