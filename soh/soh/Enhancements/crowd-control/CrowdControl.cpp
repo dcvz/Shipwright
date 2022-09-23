@@ -195,7 +195,9 @@ void CrowdControl::ReceiveFromCrowdControl()
             packet->effectCategory = "no_z";
             packet->timeRemaining = 30000;
         }
-        else if (strcmp(packet->effectType.c_str(), "wallmaster") == 0 ||
+        else if (strcmp(packet->effectType.c_str(), "spawn_wallmaster") == 0 ||
+            strcmp(packet->effectType.c_str(), "spawn_arwing") == 0 ||
+            strcmp(packet->effectType.c_str(), "spawn_darklink") == 0 ||
             strcmp(packet->effectType.c_str(), "cucco_storm") == 0) {
             packet->effectCategory = "spawn";
         }
@@ -338,8 +340,14 @@ uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
         } else if (strcmp(effectId, "hover_boots") == 0) {
             CMD_EXECUTE("boots hover");
             return 1;
-        } else if (strcmp(effectId, "wallmaster") == 0) {
-            CMD_EXECUTE(std::format("spawn 17 {} {} {} {} {} {} {}", 0, player->actor.world.pos.x, player->actor.world.pos.y, player->actor.world.pos.z, 0, 0, 0));
+        } else if (strcmp(effectId, "spawn_wallmaster") == 0) {
+            CMD_EXECUTE(std::format("spawn 17 {} {} {} {}", 0, player->actor.world.pos.x, player->actor.world.pos.y, player->actor.world.pos.z));
+            return 1;
+        } else if (strcmp(effectId, "spawn_arwing") == 0) {
+            CMD_EXECUTE(std::format("spawn 315 {} {} {} {}", 1, player->actor.world.pos.x, player->actor.world.pos.y + 100, player->actor.world.pos.z));
+            return 1;
+        } else if (strcmp(effectId, "spawn_darklink") == 0) {
+            CMD_EXECUTE(std::format("spawn 51 {} {} {} {}", 0, player->actor.world.pos.x + 100, player->actor.world.pos.y, player->actor.world.pos.z));
             return 1;
         } else if (strcmp(effectId, "increase_speed") == 0) {
            CMD_EXECUTE("speed_modifier 2");
