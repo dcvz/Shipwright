@@ -238,7 +238,7 @@ void CrowdControl::ReceiveFromCrowdControl()
 }
 
 uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
-    if (gGlobalCtx == NULL) {
+    if (gGlobalCtx == NULL || gSaveContext.fileNum < 0 || gSaveContext.fileNum > 2) {
         return 0;
     }
 
