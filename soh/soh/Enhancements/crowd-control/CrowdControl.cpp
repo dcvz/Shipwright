@@ -39,10 +39,10 @@ void CrowdControl::RunCrowdControl(CCPacket* packet) {
         dataSend["type"] = 0;
         dataSend["timeRemaining"] = packet->timeRemaining;
 
-        uint8_t returnSuccess = 0;
+        uint8_t returnSuccess;
         returnSuccess = ExecuteEffect(packet->effectType.c_str(), packet->effectValue);
 
-        if (returnSuccess == 2) {
+        if (returnSuccess == EffectResult::Failure) {
             dataSend["status"] = EffectResult::Failure;
 
             std::string jsonResponse = dataSend.dump();
@@ -50,7 +50,7 @@ void CrowdControl::RunCrowdControl(CCPacket* packet) {
             return;
         }
 
-        if (returnSuccess == 1) {
+        if (returnSuccess == EffectResult::Resumed) {
             if (paused && packet->timeRemaining > 0) {
                 paused = 0;
                 nlohmann::json dataSend;
@@ -70,8 +70,7 @@ void CrowdControl::RunCrowdControl(CCPacket* packet) {
             }
 
             packet->timeRemaining -= 1000;
-        }
-        else if (returnSuccess == 0 && paused == 0 && packet->timeRemaining > 0) {
+        } else if (returnSuccess == EffectResult::Paused && paused == 0 && packet->timeRemaining > 0) {
             paused = 1;
             nlohmann::json dataSend;
             dataSend["id"] = packet->packetId;
@@ -251,7 +250,7 @@ uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
     // Don't execute effect and don't advance timer when the player is not in a proper loaded savefile
     // and when they're busy dying.
     if (gGlobalCtx == NULL || gGlobalCtx->gameOverCtx.state > 0 || gSaveContext.fileNum < 0 || gSaveContext.fileNum > 2) {
-        return 0;
+        return EffectResult::Paused;
     }
 
     Player* player = GET_PLAYER(gGlobalCtx);
@@ -259,46 +258,46 @@ uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
     if (player != NULL) {
         if (strcmp(effectId, "add_heart_container") == 0) {
             if (gSaveContext.healthCapacity >= 0x140) {
-                return 2;
+                return EffectResult::Failure;
             }
             
             CMD_EXECUTE("add_heart_container");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "remove_heart_container") == 0) {
             if ((gSaveContext.healthCapacity - 0x10) <= 0) {
-                return 2;
+                return EffectResult::Failure;
             }
             
             CMD_EXECUTE("remove_heart_container");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "fill_magic") == 0) {
             if (!gSaveContext.magicAcquired) {
-                return 2;
+                return EffectResult::Failure;
             }
 
             if (gSaveContext.magic >= (gSaveContext.doubleMagic + 1) + 0x30) {
-                return 2;
+                return EffectResult::Failure;
             }
 
             CMD_EXECUTE("fill_magic");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "empty_magic") == 0) {
             if (!gSaveContext.magicAcquired || gSaveContext.magic <= 0) {
-                return 2;
+                return EffectResult::Failure;
             }
 
             CMD_EXECUTE("empty_magic");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "add_rupees") == 0) {
             CMD_EXECUTE(std::format("update_rupees {}", value));
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "remove_rupees") == 0) {
             if (gSaveContext.rupees - value < 0) {
-                return 2;
+                return EffectResult::Failure;
             }
 
             CMD_EXECUTE(std::format("update_rupees -{}", value));
-            return 1;
+            return EffectResult::Resumed;
         }
     }
 
@@ -306,10 +305,10 @@ uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
                                                                        && gGlobalCtx->msgCtx.msgMode == 0) {
         if (strcmp(effectId, "high_gravity") == 0) {
             CMD_EXECUTE("gravity 2");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "low_gravity") == 0) {
             CMD_EXECUTE("gravity 0");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "kill") == 0
                     || strcmp(effectId, "freeze") == 0
                     || strcmp(effectId, "burn") == 0
@@ -318,14 +317,14 @@ uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
         ) {
             if (PlayerGrounded(player)) {
                 CMD_EXECUTE(std::format("{}", effectId));
-                return 1;
+                return EffectResult::Resumed;
             }
-            return 0;
+            return EffectResult::Paused;
         } else if (strcmp(effectId, "heal") == 0
                     || strcmp(effectId, "knockback") == 0
         ) {
             CMD_EXECUTE(std::format("{} {}", effectId, value));
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "giant_link") == 0
                     || strcmp(effectId, "minish_link") == 0
                     || strcmp(effectId, "no_ui") == 0
@@ -337,48 +336,48 @@ uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
                     || strcmp(effectId, "rainstorm") == 0
         ) {
             CMD_EXECUTE(std::format("{} 1", effectId));
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "reverse") == 0) {
             CMD_EXECUTE("reverse_controls 1"); 
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "iron_boots") == 0) {
             CMD_EXECUTE("boots iron");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "hover_boots") == 0) {
             CMD_EXECUTE("boots hover");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "spawn_wallmaster") == 0) {
             CMD_EXECUTE(std::format("spawn 17 {} {} {} {}", 0, player->actor.world.pos.x, player->actor.world.pos.y, player->actor.world.pos.z));
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "spawn_arwing") == 0) {
             CMD_EXECUTE(std::format("spawn 315 {} {} {} {}", 1, player->actor.world.pos.x, player->actor.world.pos.y + 100, player->actor.world.pos.z));
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "spawn_darklink") == 0) {
             CMD_EXECUTE(std::format("spawn 51 {} {} {} {}", 0, player->actor.world.pos.x + 100, player->actor.world.pos.y, player->actor.world.pos.z));
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "increase_speed") == 0) {
            CMD_EXECUTE("speed_modifier 2");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "decrease_speed") == 0) {
            CMD_EXECUTE("speed_modifier -2");
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "damage_multiplier") == 0) {
             CMD_EXECUTE(std::format("defense_modifier -{}", value));
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "defense_multiplier") == 0) {
             CMD_EXECUTE(std::format("defense_modifier {}", value));
-            return 1;
+            return EffectResult::Resumed;
         } else if (strcmp(effectId, "damage") == 0) {
             if ((gSaveContext.healthCapacity - 0x10) <= 0) {
-                return 2;
+                return EffectResult::Failure;
             }
             
             CMD_EXECUTE(std::format("damage {}", effectId, value));
-            return 1;
+            return EffectResult::Resumed;
         }
     }
 
-    return 0;
+    return EffectResult::Paused;
 }
 
 void CrowdControl::RemoveEffect(const char* effectId) {
