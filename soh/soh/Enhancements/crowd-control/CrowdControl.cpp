@@ -363,31 +363,31 @@ uint8_t CrowdControl::ExecuteEffect(const char* effectId, uint32_t value) {
             return 1;
         } else if (strcmp(effectId, "spawn_darklink") == 0) {
             CMD_EXECUTE(std::format("spawn 51 {} {} {} {}", 0, player->actor.world.pos.x + 75, player->actor.world.pos.y + 50, player->actor.world.pos.z));
-            return EffectResult::Resumed;
+            return 1;
         } else if (strcmp(effectId, "spawn_stalfos") == 0) {
             CMD_EXECUTE(std::format("spawn 2 {} {} {} {}", 1, player->actor.world.pos.x + 75, player->actor.world.pos.y, player->actor.world.pos.z));
-            return EffectResult::Resumed;
+            return 1;
         } else if (strcmp(effectId, "spawn_wolfos") == 0) {
             CMD_EXECUTE(std::format("spawn 431 {} {} {} {}", 0, player->actor.world.pos.x + 75, player->actor.world.pos.y + 50, player->actor.world.pos.z));
-            return EffectResult::Resumed;
+            return 1;
         } else if (strcmp(effectId, "spawn_freezard") == 0) {
             CMD_EXECUTE(std::format("spawn 289 {} {} {} {}", 0, player->actor.world.pos.x + 75, player->actor.world.pos.y + 50, player->actor.world.pos.z));
-            return EffectResult::Resumed;
+            return 1;
         } else if (strcmp(effectId, "spawn_keese") == 0) {
             CMD_EXECUTE(std::format("spawn 19 {} {} {} {}", 2, player->actor.world.pos.x + 75, player->actor.world.pos.y + 50, player->actor.world.pos.z));
-            return EffectResult::Resumed;
+            return 1;
         } else if (strcmp(effectId, "spawn_icekeese") == 0) {
             CMD_EXECUTE(std::format("spawn 19 {} {} {} {}", 4, player->actor.world.pos.x + 75, player->actor.world.pos.y + 50, player->actor.world.pos.z));
-            return EffectResult::Resumed;
+            return 1;
         } else if (strcmp(effectId, "spawn_firekeese") == 0) {
             CMD_EXECUTE(std::format("spawn 19 {} {} {} {}", 1, player->actor.world.pos.x + 75, player->actor.world.pos.y + 50, player->actor.world.pos.z));
-            return EffectResult::Resumed;
+            return 1;
         } else if (strcmp(effectId, "spawn_tektite") == 0) {
             CMD_EXECUTE(std::format("spawn 27 {} {} {} {}", 0, player->actor.world.pos.x + 75, player->actor.world.pos.y + 50, player->actor.world.pos.z));
-            return EffectResult::Resumed;
+            return 1;
         } else if (strcmp(effectId, "spawn_likelike") == 0) {
             CMD_EXECUTE(std::format("spawn 221 {} {} {} {}", 0, player->actor.world.pos.x, player->actor.world.pos.y + 200, player->actor.world.pos.z));
-            return EffectResult::Resumed;
+            return 1;
         } else if (strcmp(effectId, "increase_speed") == 0) {
            CMD_EXECUTE("speed_modifier 2");
             return 1;
