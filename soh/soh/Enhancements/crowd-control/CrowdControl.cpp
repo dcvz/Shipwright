@@ -474,12 +474,8 @@ bool CrowdControl::SpawnEnemy(const char* effectId) {
         posYOffset = 50;
     }
 
-    if (Actor_Spawn(&gGlobalCtx->actorCtx, gGlobalCtx, enemyId, player->actor.world.pos.x + posXOffset,
-        player->actor.world.pos.y + posYOffset, player->actor.world.pos.z + posZOffset, 0, 0, 0, enemyParams)) {
-        return true;
-    } else {
-        return false;
-    }
+    return Actor_Spawn(&gGlobalCtx->actorCtx, gGlobalCtx, enemyId, player->actor.world.pos.x + posXOffset,
+        player->actor.world.pos.y + posYOffset, player->actor.world.pos.z + posZOffset, 0, 0, 0, enemyParams);
 
 }
 
