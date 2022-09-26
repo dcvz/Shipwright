@@ -672,6 +672,7 @@ static bool PacifistHandler(std::shared_ptr<Ship::Console> Console, const std::v
 
     try {
         pacifistMode = std::stoi(args[1], nullptr, 10) == 0 ? 0 : 1;
+        // Force interface to update to make the buttons transparent
         gSaveContext.unk_13E8 = 50;
         Interface_Update(gGlobalCtx);
         return CMD_SUCCESS;
