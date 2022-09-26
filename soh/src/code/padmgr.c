@@ -232,10 +232,15 @@ void PadMgr_ProcessInputs(PadMgr* padMgr) {
                 if (noZ) {
                     input->cur.button &= ~(BTN_Z);
                 }
-
-                // Do not block buttons in the pause menu while pacifist mode is enabled
-                if (pacifistMode && gGlobalCtx->pauseCtx.state == 0) {
+                
+                // Do not block buttons in the pause menu, conversations and ocarina play while pacifist mode is
+                // enabled
+                if (pacifistMode && gGlobalCtx->pauseCtx.state == 0 && gGlobalCtx->msgCtx.msgMode == 0) {
                     input->cur.button &= ~(BTN_CLEFT | BTN_CRIGHT | BTN_CUP | BTN_CDOWN | BTN_B);
+
+                    if (CVar_GetS32("gDpadEquips", 0)) {
+                        input->cur.button &= ~(BTN_DUP | BTN_DDOWN | BTN_DLEFT | BTN_DRIGHT);
+                    }
                 }
 
                 if (reverseControls) {
