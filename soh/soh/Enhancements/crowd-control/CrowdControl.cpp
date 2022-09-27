@@ -379,7 +379,7 @@ CrowdControl::EffectResult CrowdControl::ExecuteEffect(std::string effectId, uin
         } else if (effectId == "hover_boots") {
             if (dryRun == 0) CMD_EXECUTE("boots hover");
             return EffectResult::Success;
-        } else if (effectId, "give_dekushield") {
+        } else if (effectId == "give_dekushield") {
             if (dryRun == 0) CMD_EXECUTE("givedekushield");
             return EffectResult::Success;
         } else if (effectId == "spawn_wallmaster" 
