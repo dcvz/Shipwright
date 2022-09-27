@@ -10907,13 +10907,13 @@ void Player_Update(Actor* thisx, GlobalContext* globalCtx) {
     MREG(54) = this->actor.world.pos.z;
     MREG(55) = this->actor.world.rot.y;
 
-    if (giantLink == 1) {
+    if (giantLink) {
         this->actor.scale.x = 0.02f;
         this->actor.scale.y = 0.02f;
         this->actor.scale.z = 0.02f;
     }
 
-    if (minishLink == 1) {
+    if (minishLink) {
         this->actor.scale.x = 0.001f;
         this->actor.scale.y = 0.001f;
         this->actor.scale.z = 0.001f;
@@ -10925,7 +10925,7 @@ void Player_Update(Actor* thisx, GlobalContext* globalCtx) {
         this->actor.scale.z =  paperLink == 2 ? 0.001f : 0.01f;
     }
 
-    if (resetLinkScale == 1) {
+    if (resetLinkScale) {
         this->actor.scale.x = 0.01f;
         this->actor.scale.y = 0.01f;
         this->actor.scale.z = 0.01f;
