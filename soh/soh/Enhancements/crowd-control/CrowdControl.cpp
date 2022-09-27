@@ -372,6 +372,9 @@ CrowdControl::EffectResult CrowdControl::ExecuteEffect(const char* effectId, uin
         } else if (strcmp(effectId, "hover_boots") == 0) {
             if (dryRun == 0) CMD_EXECUTE("boots hover");
             return EffectResult::Success;
+        } else if (strcmp(effectId, "give_dekushield") == 0) {
+            if (dryRun == 0) CMD_EXECUTE("givedekushield");
+            return EffectResult::Success;
         } else if (strcmp(effectId, "spawn_wallmaster") == 0 
             || strcmp(effectId, "spawn_arwing") == 0 
             || strcmp(effectId, "spawn_darklink") == 0 
