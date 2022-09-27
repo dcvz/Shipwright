@@ -10919,10 +10919,10 @@ void Player_Update(Actor* thisx, GlobalContext* globalCtx) {
         this->actor.scale.z = 0.001f;
     }
 
-    if (paperLink != 0) {
-        this->actor.scale.x = paperLink == 1 ? 0.001f : 0.01f;
+    if (paperLink != PAPER_LINK_DISABLED) {
+        this->actor.scale.x = paperLink == PAPER_LINK_X_AXIS ? 0.001f : 0.01f;
         this->actor.scale.y = 0.01f;
-        this->actor.scale.z =  paperLink == 2 ? 0.001f : 0.01f;
+        this->actor.scale.z =  paperLink == PAPER_LINK_Z_AXIS ? 0.001f : 0.01f;
     }
 
     if (resetLinkScale) {
@@ -10932,11 +10932,11 @@ void Player_Update(Actor* thisx, GlobalContext* globalCtx) {
         resetLinkScale = 0;
     }
 
-    if (gravityLevel == 2) {
+    if (gravityLevel == GRAVITY_LEVEL_HEAVY) {
         this->actor.gravity = -4.0f;
     }
 
-    if (gravityLevel == 0) {
+    if (gravityLevel == GRAVITY_LEVEL_LIGHT) {
         this->actor.gravity = -0.3f;
     }
 }

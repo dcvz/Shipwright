@@ -35,7 +35,7 @@ bool noUI;
 bool giantLink;
 bool minishLink;
 uint32_t paperLink;
-uint32_t gravityLevel = 1;
+uint32_t gravityLevel = GRAVITY_LEVEL_NORMAL;
 bool resetLinkScale;
 bool invisibleLink;
 bool oneHitKO;
@@ -488,7 +488,7 @@ static bool GiantLinkHandler(std::shared_ptr<Ship::Console> Console, const std::
     try {
         giantLink = std::stoi(args[1], nullptr, 10) == 0 ? false : true;
         if (giantLink) {
-            paperLink = 0.0f;
+            paperLink = PAPER_LINK_DISABLED;
             minishLink = false;
         } else {
             resetLinkScale = true;
@@ -510,7 +510,7 @@ static bool MinishLinkHandler(std::shared_ptr<Ship::Console> Console, const std:
     try {
         minishLink = std::stoi(args[1], nullptr, 10) == 0 ? false : true;
         if (minishLink) {
-            paperLink = 0.0f;
+            paperLink = PAPER_LINK_DISABLED;
             giantLink = false;
         } else {
             resetLinkScale = true;
@@ -546,7 +546,7 @@ static bool GravityHandler(std::shared_ptr<Ship::Console> Console, const std::ve
     }
 
     try {
-        gravityLevel = Ship::Math::clamp(std::stoi(args[1], nullptr, 10), 0.0f, 2.0f);
+        gravityLevel = Ship::Math::clamp(std::stoi(args[1], nullptr, 10), GRAVITY_LEVEL_LIGHT, GRAVITY_LEVEL_HEAVY);
         return CMD_SUCCESS;
     } catch (std::invalid_argument const& ex) {
         SohImGui::GetConsole()->SendErrorMessage("[SOH] Minish value must be a number.");
@@ -701,8 +701,8 @@ static bool PaperLinkHandler(std::shared_ptr<Ship::Console> Console, const std::
     }
 
     try {
-        paperLink = Ship::Math::clamp(std::stoi(args[1], nullptr, 10), 0.0f, 2.0f);
-        if (paperLink) {
+        paperLink = Ship::Math::clamp(std::stoi(args[1], nullptr, 10), PAPER_LINK_DISABLED, PAPER_LINK_Z_AXIS);
+        if (paperLink != PAPER_LINK_DISABLED) {
             minishLink = false;
             giantLink = false;
         } else {
