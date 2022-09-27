@@ -10919,10 +10919,10 @@ void Player_Update(Actor* thisx, GlobalContext* globalCtx) {
         this->actor.scale.z = 0.001f;
     }
 
-    if (paperLink != PAPER_LINK_DISABLED) {
-        this->actor.scale.x = paperLink == PAPER_LINK_X_AXIS ? 0.001f : 0.01f;
+    if (paperLink) {
+        this->actor.scale.x = 0.001f;
         this->actor.scale.y = 0.01f;
-        this->actor.scale.z =  paperLink == PAPER_LINK_Z_AXIS ? 0.001f : 0.01f;
+        this->actor.scale.z = 0.01f;
     }
 
     if (resetLinkScale) {

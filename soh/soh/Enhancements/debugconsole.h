@@ -2,10 +2,6 @@
 
 #include "stdint.h"
 
-#define PAPER_LINK_DISABLED 0
-#define PAPER_LINK_X_AXIS 1
-#define PAPER_LINK_Z_AXIS 2
-
 #define GRAVITY_LEVEL_NORMAL 1.0f
 #define GRAVITY_LEVEL_LIGHT 0.0f
 #define GRAVITY_LEVEL_HEAVY 2.0f
@@ -16,7 +12,7 @@ extern "C" {
 extern bool noUI;
 extern bool giantLink;
 extern bool minishLink;
-extern uint32_t paperLink;
+extern bool paperLink;
 extern uint32_t gravityLevel;
 extern bool resetLinkScale;
 extern bool invisibleLink;

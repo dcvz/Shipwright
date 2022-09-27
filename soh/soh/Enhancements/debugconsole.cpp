@@ -34,7 +34,7 @@ extern GlobalContext* gGlobalCtx;
 bool noUI;
 bool giantLink;
 bool minishLink;
-uint32_t paperLink;
+bool paperLink;
 uint32_t gravityLevel = GRAVITY_LEVEL_NORMAL;
 bool resetLinkScale;
 bool invisibleLink;
@@ -488,7 +488,7 @@ static bool GiantLinkHandler(std::shared_ptr<Ship::Console> Console, const std::
     try {
         giantLink = std::stoi(args[1], nullptr, 10) == 0 ? false : true;
         if (giantLink) {
-            paperLink = PAPER_LINK_DISABLED;
+            paperLink = false;
             minishLink = false;
         } else {
             resetLinkScale = true;
@@ -510,7 +510,7 @@ static bool MinishLinkHandler(std::shared_ptr<Ship::Console> Console, const std:
     try {
         minishLink = std::stoi(args[1], nullptr, 10) == 0 ? false : true;
         if (minishLink) {
-            paperLink = PAPER_LINK_DISABLED;
+            paperLink = false;
             giantLink = false;
         } else {
             resetLinkScale = true;
@@ -701,8 +701,8 @@ static bool PaperLinkHandler(std::shared_ptr<Ship::Console> Console, const std::
     }
 
     try {
-        paperLink = Ship::Math::clamp(std::stoi(args[1], nullptr, 10), PAPER_LINK_DISABLED, PAPER_LINK_Z_AXIS);
-        if (paperLink != PAPER_LINK_DISABLED) {
+        paperLink = std::stoi(args[1], nullptr, 10) == 0 ? false : true;
+        if (paperLink) {
             minishLink = false;
             giantLink = false;
         } else {
