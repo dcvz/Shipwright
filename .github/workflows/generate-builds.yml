@@ -1,0 +1,166 @@
+name: generate-builds
+on:
+  push:
+  pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  generate-assets:
+    runs-on: [ self-hosted, macOS, ARM64 ]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build macOS
+      run: |
+        cp ../../../ZELOOTD.z64 OTRExporter/baserom_non_mq.z64
+        cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+        cmake --build build-cmake --target ExtractAssets --config Release
+    - name: Cache assets
+      uses: actions/cache@v3
+      with:
+        path: soh/assets/**/*
+        key: ${{ github.run_id }}-${{ github.ref }}
+  build-macos:
+    needs: generate-assets
+    runs-on: [ self-hosted, macOS, ARM64 ]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Restore assets
+      uses: actions/cache@v3
+      with:
+        path: soh/assets/**/*
+        key: ${{ github.run_id }}-${{ github.ref }}
+    - name: Build SoH
+      run: |
+        cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+        cmake --build build-cmake --config Release
+        (cd build-cmake && cpack)
+    - name: Upload build
+      uses: actions/upload-artifact@v3
+      with:
+        name: soh-mac
+        path: _packages/*.dmg
+  build-linux:
+    needs: generate-assets
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Restore assets
+      uses: actions/cache@v3
+      with:
+        path: soh/assets/**/*
+        key: ${{ github.run_id }}-${{ github.ref }}
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get upgrade -y
+        sudo apt-get install -y \
+            binutils \
+            gcc-10 \
+            g++-10 \
+            patchelf \
+            p7zip-full \
+            python3 \
+            cmake \
+            make \
+            curl \
+            git \
+            lld \
+            libsdl2-dev \
+            zlib1g-dev \
+            libbz2-dev \
+            libpng-dev \
+            libgles2-mesa-dev \
+            wget \
+            gpg \
+            imagemagick \
+            ninja-build
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10 && \
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10
+    - name: Build SDL2
+      run: |
+        curl -sLO https://libsdl.org/release/SDL2-2.0.22.tar.gz && \
+        tar -xzf SDL2-2.0.22.tar.gz && \
+        cd SDL2-2.0.22 && \
+        ./configure --build=x86_64-linux-gnu && \
+        sudo make -j$(nproc) && sudo make install && \
+        rm ../SDL2-2.0.22.tar.gz && \
+        sudo cp -av /usr/local/lib/libSDL* /lib/x86_64-linux-gnu/
+    - name: Build SoH
+      run: |
+        cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release
+        cmake --build build-cmake --target OTRGui --config Release
+        cmake --build build-cmake --config Release
+        (cd build-cmake && cpack)
+    - name: Upload build
+      uses: actions/upload-artifact@v3
+      with:
+        name: soh-linux
+        path: build-cmake/*.appimage
+  build-nintendo-switch:
+    needs: generate-assets
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Restore assets
+      uses: actions/cache@v3
+      with:
+        path: soh/assets/**/*
+        key: ${{ github.run_id }}-${{ github.ref }}
+    - name: Build SoH
+      run: |
+        docker run --rm -v $(pwd):/soh dcvz/sohbuilder cmake -H. -Bbuild-switch -GNinja -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/Switch.cmake -DCMAKE_BUILD_TYPE:STRING=Release
+        docker run --rm -v $(pwd):/soh dcvz/sohbuilder cmake --build build-switch --target soh_nro --config Release
+    - name: Upload build
+      uses: actions/upload-artifact@v3
+      with:
+        name: soh-nintendo-switch
+        path: build-switch/soh/*.nro
+  build-nintendo-wiiu:
+    needs: generate-assets
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Restore assets
+      uses: actions/cache@v3
+      with:
+        path: soh/assets/**/*
+        key: ${{ github.run_id }}-${{ github.ref }}
+    - name: Build SoH
+      run: |
+        docker run --rm -v $(pwd):/soh dcvz/sohbuilder cmake -H. -Bbuild-wiiu -GNinja -DCMAKE_TOOLCHAIN_FILE=/opt/devkitpro/cmake/WiiU.cmake -DCMAKE_BUILD_TYPE:STRING=Release
+        docker run --rm -v $(pwd):/soh dcvz/sohbuilder cmake --build build-wiiu --target soh_wuhb --config Release
+    - name: Upload build
+      uses: actions/upload-artifact@v3
+      with:
+        name: soh-nintendo-wiiu
+        path: |
+          build-wiiu/soh/*.rpx
+          build-wiiu/soh/*.wuhb
+  build-windows:
+    needs: generate-assets
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use GNU tar
+      shell: cmd
+      run: |
+        echo "Adding GNU tar to PATH"
+        echo C:\Program Files\Git\usr\bin>>"%GITHUB_PATH%"
+    - name: Restore assets
+      uses: actions/cache@v3
+      with:
+        path: soh/assets/**/*
+        key: ${{ github.run_id }}-${{ github.ref }}
+    - name: Build SoH
+      run: |
+        cmake -S . -B build-windows -G "Visual Studio 17 2022" -T v142 -A x64 -DCMAKE_BUILD_TYPE:STRING=Release
+        cmake --build build-windows --target OTRGui --config Release
+        cmake --build build-windows --config Release
+        cd build-windows
+        cpack -G ZIP
+    - name: Upload build
+      uses: actions/upload-artifact@v3
+      with:
+        name: soh-windows
+        path: _packages/*.zip
