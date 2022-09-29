@@ -76,7 +76,7 @@
 #include <TargetConditionals.h>
 #endif
 
-#if SDL_VERSION_ATLEAST(2,0,4) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !(defined(__APPLE__) && TARGET_OS_IOS) && !defined(__amigaos4__) && !defined(__SWITCH__)
+#if SDL_VERSION_ATLEAST(2,0,4) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__) && !(defined(__APPLE__) && TARGET_OS_IOS) && !defined(__amigaos4__)
 #define SDL_HAS_CAPTURE_AND_GLOBAL_MOUSE    1
 #else
 #define SDL_HAS_CAPTURE_AND_GLOBAL_MOUSE    0
@@ -89,6 +89,8 @@
 #if !SDL_HAS_VULKAN
 static const Uint32 SDL_WINDOW_VULKAN = 0x10000000;
 #endif
+
+#include "spdlog/spdlog.h"
 
 // SDL Data
 struct ImGui_ImplSDL2_Data
@@ -364,11 +366,17 @@ static bool ImGui_ImplSDL2_Init(SDL_Window* window, SDL_Renderer* renderer, void
     // ("wayland" and "rpi" don't support it, but we chose to use a white-list instead of a black-list)
     bool mouse_can_use_global_state = false;
 #if SDL_HAS_CAPTURE_AND_GLOBAL_MOUSE
+    SPDLOG_TRACE("Getting SDL Backend");
     const char* sdl_backend = SDL_GetCurrentVideoDriver();
+    SPDLOG_TRACE("Getting SDL Backend: {}", sdl_backend);
     const char* global_mouse_whitelist[] = { "windows", "cocoa", "x11", "DIVE", "VMAN" };
-    for (int n = 0; n < IM_ARRAYSIZE(global_mouse_whitelist); n++)
-        if (strncmp(sdl_backend, global_mouse_whitelist[n], strlen(global_mouse_whitelist[n])) == 0)
+    for (int n = 0; n < IM_ARRAYSIZE(global_mouse_whitelist); n++) {
+        SPDLOG_TRACE("Checking if item in whitelist matches: {}", global_mouse_whitelist[n]);
+        if (strncmp(sdl_backend, global_mouse_whitelist[n], strlen(global_mouse_whitelist[n])) == 0) {
+            SPDLOG_TRACE("Setting mouse_can_use_global_state");
             mouse_can_use_global_state = true;
+        }
+    }
 #endif
 
     // Setup backend capabilities flags
@@ -508,8 +516,11 @@ static void ImGui_ImplSDL2_UpdateMouseData()
     // We forward mouse input when hovered or captured (via SDL_MOUSEMOTION) or when focused (below)
 #if SDL_HAS_CAPTURE_AND_GLOBAL_MOUSE
     // SDL_CaptureMouse() let the OS know e.g. that our imgui drag outside the SDL window boundaries shouldn't e.g. trigger other operations outside
+    SPDLOG_TRACE("Set SDL Capture Mouse");
     SDL_CaptureMouse((bd->MouseButtonsDown != 0 && ImGui::GetDragDropPayload() == NULL) ? SDL_TRUE : SDL_FALSE);
+    SPDLOG_TRACE("Get Keyboard focus");
     SDL_Window* focused_window = SDL_GetKeyboardFocus();
+    SPDLOG_TRACE("Set is_app_focused");
     const bool is_app_focused = (focused_window && (bd->Window == focused_window || ImGui::FindViewportByPlatformHandle((void*)focused_window)));
 #else
     SDL_Window* focused_window = bd->Window;
@@ -522,8 +533,11 @@ static void ImGui_ImplSDL2_UpdateMouseData()
         if (io.WantSetMousePos)
         {
 #if SDL_HAS_CAPTURE_AND_GLOBAL_MOUSE
-            if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+            SPDLOG_TRACE("Check if viewports are enabled");
+            if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+                SPDLOG_TRACE("Warp global mouse");
                 SDL_WarpMouseGlobal((int)io.MousePos.x, (int)io.MousePos.y);
+            }
             else
 #endif
                 SDL_WarpMouseInWindow(bd->Window, (int)io.MousePos.x, (int)io.MousePos.y);

@@ -316,6 +316,9 @@ namespace SohImGui {
         case Backend::DX11:
             return true;
         case Backend::SDL:
+#ifdef __SWITCH__
+            return false;
+#endif
             return true;
         default:
             return false;
