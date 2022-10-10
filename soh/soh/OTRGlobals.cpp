@@ -1520,7 +1520,7 @@ extern "C" uint32_t OTRGetCurrentHeight() {
 }
 
 extern "C" void OTRTextToSpeechCallback(char* text) {
-    OTRGlobals::Instance->context->GetWindow()->ReadText(text);
+    OTRGlobals::Instance->context->ReadText(text);
 }
 
 extern "C" void OTRControllerCallback(ControllerCallback* controller) {

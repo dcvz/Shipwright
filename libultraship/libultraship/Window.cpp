@@ -353,8 +353,7 @@ namespace Ship {
     }
 
 #ifdef _WIN32
-    void task1(const std::string & textToRead)
-    {
+    void task1(const std::string & textToRead) {
         const int w = 512;
         int* wp = const_cast <int*> (&w);
         *wp = strlen(textToRead.c_str());
@@ -364,17 +363,18 @@ namespace Ship {
 
         pVoice->Speak(wtext, SPF_IS_XML | SPF_ASYNC | SPF_PURGEBEFORESPEAK, NULL);
     }
+#endif
 
-    void Window::ReadText(const char textToRead[])
-    {
+    void Window::ReadText(const char textToRead[]) {
+    #ifdef _WIN32
         if (textToRead == nullptr) {
             return;
         }
         std::string textCopy(textToRead);
         std::thread t1(task1, textCopy);
         t1.detach();
+    #endif
     }
-#endif
 
     void Window::StartFrame() {
         gfx_start_frame();
