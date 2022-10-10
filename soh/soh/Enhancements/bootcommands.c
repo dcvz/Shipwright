@@ -32,7 +32,7 @@ void BootCommands_Init()
     } else {
         CVar_RegisterS32("gRandomizer", 0);
     }
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__APPLE__)
     CVar_RegisterS32("gAccessibleInteraction", 0);
     CVar_RegisterS32("gMoreTargets", 0);
     CVar_RegisterS32("gMessageTTS", 0);
