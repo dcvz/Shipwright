@@ -38,6 +38,8 @@
 #include "SwitchImpl.h"
 #elif defined(__WIIU__)
 #include "WiiUImpl.h"
+#elif defined(_WIN32)
+#include <sapi.h>
 #endif
 
 
@@ -224,6 +226,10 @@ extern "C" {
     }
 }
 
+#ifdef _WIN32
+ISpVoice* pVoice = NULL;
+#endif
+
 namespace Ship {
 
     std::weak_ptr<Window> Window::Context;
@@ -279,6 +285,10 @@ namespace Ship {
         }
     }
 
+#ifdef _WIN32
+    ISpVoice* pVoice;
+#endif
+
     void Window::Initialize() {
         InitializeLogging();
         InitializeConfiguration();
@@ -303,6 +313,14 @@ namespace Ship {
 
         audioBackend = GetConfig()->getString("Window.AudioBackend");
         InitializeAudioPlayer();
+
+    #ifdef _WIN32
+        //Initialize Text To Speech
+        HRESULT hr;
+        HRESULT a = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+        HRESULT CoInitializeEx(LPVOID pvReserved, DWORD dwCoInit);
+        hr = CoCreateInstance(CLSID_SpVoice, NULL, CLSCTX_ALL, IID_ISpVoice, (void**)&pVoice);
+    #endif
 
         gfx_init(WmApi, RenderingApi, GetName().c_str(), bIsFullscreen, dwWidth, dwHeight);
         WmApi->set_fullscreen_changed_callback(OnFullscreenChanged);
@@ -333,6 +351,30 @@ namespace Ship {
     std::string Window::GetPathRelativeToAppDirectory(const char* path) {
         return GetAppDirectoryPath() + "/" + path;
     }
+
+#ifdef _WIN32
+    void task1(const std::string & textToRead)
+    {
+        const int w = 512;
+        int* wp = const_cast <int*> (&w);
+        *wp = strlen(textToRead.c_str());
+
+        wchar_t wtext[w];
+        mbstowcs(wtext, textToRead.c_str(), strlen(textToRead.c_str()) + 1);
+
+        pVoice->Speak(wtext, SPF_IS_XML | SPF_ASYNC | SPF_PURGEBEFORESPEAK, NULL);
+    }
+
+    void Window::ReadText(const char textToRead[])
+    {
+        if (textToRead == nullptr) {
+            return;
+        }
+        std::string textCopy(textToRead);
+        std::thread t1(task1, textCopy);
+        t1.detach();
+    }
+#endif
 
     void Window::StartFrame() {
         gfx_start_frame();

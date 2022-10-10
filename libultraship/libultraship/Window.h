@@ -36,6 +36,7 @@ namespace Ship {
 			void ToggleFullscreen();
 			void SetFullscreen(bool bIsFullscreen);
 			void ShowCursor(bool hide);
+			void ReadText(const char textToRead[]);
 			uint32_t GetCurrentWidth();
 			uint32_t GetCurrentHeight();
 			bool IsFullscreen();
