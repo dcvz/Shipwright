@@ -91,27 +91,23 @@ extern "C" void OTRMessage_InitAccessibilityText()
     }
 }
 
-extern "C" const char * OTRMessage_GetAccessibilityText(const char * textResourcePath, u16 textId, const char * arg)
-{
+extern "C" const char* OTRMessage_GetAccessibilityText(const char* textResourcePath, u16 textId, const char* arg) {
     auto it = sAccessibilityText.find(textId);
-	if (it == sAccessibilityText.end())
-	{
+ 	if (it == sAccessibilityText.end()) {
         return nullptr;
 	}
 
-	if (arg != nullptr)
-	{
+	if (arg != nullptr) {
         sTextInterpolated = it->second;
         std::string searchString = "$0";
         size_t index = sTextInterpolated.find(searchString);
-		if (index != std::string::npos)
-		{
+		if (index != std::string::npos) {
             sTextInterpolated.replace(index, searchString.size(), std::string(arg));
-            return sTextInterpolated.c_str();
+            return strdup(sTextInterpolated.c_str());
 		}
 	}
 
-	return it->second.c_str();
+	return strdup(it->second.c_str());
 }
 
 extern "C" void OTRMessage_Init()

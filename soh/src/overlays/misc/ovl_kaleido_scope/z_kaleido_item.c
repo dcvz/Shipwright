@@ -469,7 +469,7 @@ void KaleidoScope_DrawItemSelect(GlobalContext* globalCtx) {
                         arg[0] = '\0';
                 }
                 OTRTextToSpeechCallback(OTRMessage_GetAccessibilityText("text/accessibility_text/accessibility_text_eng",
-                    pauseCtx->cursorItem[PAUSE_ITEM]), arg);
+                    pauseCtx->cursorItem[PAUSE_ITEM], NULL), arg);
             }
         }
     } else if ((pauseCtx->unk_1E4 == 3) && (pauseCtx->pageIndex == PAUSE_ITEM)) {

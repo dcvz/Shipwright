@@ -1098,8 +1098,7 @@ void TitleCard_InitPlaceName(GlobalContext* globalCtx, TitleCardContext* titleCt
     titleCtx->delayTimer = delay;
 
     if (CVar_GetS32("gMessageTTS", 0)) {
-        sTitleCardText =
-            OTRMessage_GetAccessibilityText("text/accessibility_text/accessibility_text_eng", 0x0300 + globalCtx->sceneNum, NULL);
+        sTitleCardText = OTRMessage_GetAccessibilityText("text/accessibility_text/accessibility_text_eng", 0x0300 + globalCtx->sceneNum, NULL);
     }
 }
 

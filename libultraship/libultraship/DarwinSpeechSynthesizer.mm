@@ -15,6 +15,13 @@ namespace Ship {
 
     void DarwinSpeechSynthesizer::Speak(std::string text) {
         AVSpeechUtterance *utterance = [AVSpeechUtterance speechUtteranceWithString:@(text.c_str())];
+        [utterance setVoice:[AVSpeechSynthesisVoice voiceWithIdentifier:@"com.apple.voice.compact.en-US.Samantha"]];
+
+        if (@available(macOS 11.0, *)) {
+            [utterance setPrefersAssistiveTechnologySettings:YES];
+        }
+
+        [(AVSpeechSynthesizer *)synthesizer stopSpeakingAtBoundary:AVSpeechBoundaryImmediate];
         [(AVSpeechSynthesizer *)synthesizer speakUtterance:utterance];
     }
 }
