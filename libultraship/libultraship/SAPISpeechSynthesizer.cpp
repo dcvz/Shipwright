@@ -5,8 +5,10 @@
 //  Created by David Chavez on 10.10.22.
 //
 
-#include "SAPISpeechSynthesizer.hpp"
+#include "SAPISpeechSynthesizer.h"
 #include <thread>
+
+ISpVoice * pVoice = NULL;
 
 namespace Ship {
     bool SAPISpeechSynthesizer::Init() {
@@ -14,7 +16,7 @@ namespace Ship {
         CoCreateInstance(CLSID_SpVoice, NULL, CLSCTX_ALL, IID_ISpVoice, (void **)&pVoice);        
     }
 
-    void AVSpeechSynthesizer::SpeakThreadTask(const std::string &text) {
+    void SpeakThreadTask(const std::string &text) {
         const int w = 512;
         int* wp = const_cast <int*> (&w);
         *wp = strlen(text.c_str());
@@ -26,9 +28,6 @@ namespace Ship {
     }
 
     void AVSpeechSynthesizer::Speak(std::string text) {
-        if (text == nullptr) {
-            return;
-        }
         std::thread t1(SpeakThreadTask, text);
         t1.detach();
     }

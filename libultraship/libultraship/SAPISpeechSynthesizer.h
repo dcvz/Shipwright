@@ -19,8 +19,6 @@ namespace Ship {
 
         bool Init(void);
         void Speak(std::string text);
-    private:
-        ISpVoice * pVoice = NULL;
     };
 }
 
