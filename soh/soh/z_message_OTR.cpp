@@ -85,8 +85,7 @@ extern "C" void OTRMessage_InitAccessibilityText()
     auto file = std::static_pointer_cast<Ship::Text>(
         OTRGlobals::Instance->context->GetResourceManager()->LoadResource("text/accessibility_text/accessibility_text_eng"));
 
-    for (int i = 0; i < file->messages.size(); i++)
-	{
+    for (size_t i = 0; i < file->messages.size(); i++) {
         sAccessibilityText[file->messages[i].id] = file->messages[i].msg;
     }
 }

@@ -817,7 +817,7 @@ void func_8002CDE4(GlobalContext* globalCtx, TitleCardContext* titleCtx) {
     titleCtx->durationTimer = titleCtx->delayTimer = titleCtx->intensityB = titleCtx->alpha = 0;
 }
 
-static u8* sTitleCardText;
+static char* sTitleCardText;
 
 void TitleCard_InitBossName(GlobalContext* globalCtx, TitleCardContext* titleCtx, void* texture, s16 x, s16 y, u8 width,
                             u8 height, s16 hasTranslation) {

@@ -475,6 +475,7 @@ namespace Ship {
     void Window::InitializeSpeechSynthesis() {
 #ifdef _WIN32
         SpeechSynthesizer = std::make_shared<SAPISpeechSynthesizer>();
+        SpeechSynthesizer->Init();
 #endif
 #ifdef __APPLE__
         SpeechSynthesizer = std::make_shared<DarwinSpeechSynthesizer>();
