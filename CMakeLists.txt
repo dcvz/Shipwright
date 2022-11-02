@@ -118,12 +118,11 @@ include(FetchContent)
 FetchContent_Declare(
     libultraship
     GIT_REPOSITORY https://github.com/dcvz/libultraship.git
-    GIT_TAG        d2e0302324012750b57f70a9e580c89adb416a01
+    GIT_TAG        6244ce5cfb1cfd53a62bcb9466093e83a3f97cda
 )
 FetchContent_MakeAvailable(libultraship)
 
 add_subdirectory(ZAPDTR/ZAPD ${CMAKE_BINARY_DIR}/ZAPD)
-add_subdirectory(ZAPDTR/ZAPDUtils ${CMAKE_BINARY_DIR}/ZAPDUtils)
 add_subdirectory(OTRExporter)
 add_subdirectory(soh)
 if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin|NintendoSwitch|CafeOS")
