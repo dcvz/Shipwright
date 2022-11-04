@@ -137,6 +137,7 @@ void CrowdControl::ListenToServer() {
 
             try {
                 CCPacket* incomingEffect = ParseMessage(received);
+                incomingEffect->lastExecutionResult = EffectResult::Initiate;
 
                 // If effect is a one off run, let's execute
                 if (!incomingEffect->timeRemaining) {
