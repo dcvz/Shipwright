@@ -137,7 +137,6 @@ void CrowdControl::ListenToServer() {
 
             try {
                 CCPacket* incomingEffect = ParseMessage(received);
-                incomingEffect->lastExecutionResult = EffectResult::Initiate;
 
                 // If effect is a one off run, let's execute
                 if (!incomingEffect->timeRemaining) {
@@ -251,6 +250,7 @@ CrowdControl::CCPacket* CrowdControl::ParseMessage(char payload[512]) {
     nlohmann::json dataReceived = nlohmann::json::parse(payload);
     CCPacket* packet = new CCPacket();
 
+    packet->lastExecutionResult = EffectResult::Initiate;
     packet->packetId = dataReceived["id"];
     auto parameters = dataReceived["parameters"];
     if (parameters.size() > 0) {
