@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <filesystem>
+#include <unordered_set>
 #include "spdlog/spdlog.h"
 #include "ControlDeck.h"
 #include "AudioPlayer.h"
@@ -18,7 +19,7 @@ namespace Ship {
 	class Window {
 		public:
 			static std::shared_ptr<Window> GetInstance();
-			static std::shared_ptr<Window> CreateInstance(const std::string Name);
+			static std::shared_ptr<Window> CreateInstance(const std::string Name, const std::vector<std::string>& OTRFiles = {}, const std::unordered_set<uint32_t>& ValidHashes = {});
 			static std::string GetAppDirectoryPath();
 			static std::string GetPathRelativeToAppDirectory(const char* path);
 
@@ -28,7 +29,7 @@ namespace Ship {
 			void ReadSaveFile(std::filesystem::path savePath, uintptr_t addr, void* dramAddr, size_t size);
 			void CreateDefaults();
 			void MainLoop(void (*MainFunction)(void));
-			void Initialize();
+			void Initialize(const std::vector<std::string>& OTRFiles = {}, const std::unordered_set<uint32_t>& ValidHashes = {});
 			void StartFrame();
 			void SetTargetFps(int32_t fps);
 			void SetMaximumFrameLatency(int32_t latency);
@@ -36,8 +37,8 @@ namespace Ship {
 			uint16_t GetPixelDepth(float x, float y);
 			void ToggleFullscreen();
 			void SetFullscreen(bool bIsFullscreen);
-			void ShowCursor(bool hide);
 			void ReadText(const char* text);
+			void SetCursorVisibility(bool visible);
 			uint32_t GetCurrentWidth();
 			uint32_t GetCurrentHeight();
 			bool IsFullscreen();
@@ -67,7 +68,7 @@ namespace Ship {
 			void InitializeAudioPlayer();
             void InitializeSpeechSynthesis();
 			void InitializeLogging();
-			void InitializeResourceManager();
+			void InitializeResourceManager(const std::vector<std::string>& OTRFiles = {}, const std::unordered_set<uint32_t>& ValidHashes = {});
 			void InitializeWindowManager();
 
 			std::shared_ptr<spdlog::logger> Logger;
@@ -88,6 +89,7 @@ namespace Ship {
 			int32_t lastScancode;
 			std::string Name;
 			std::string MainPath;
+            std::string BasePath;
 			std::string PatchesPath;
 	};
 }

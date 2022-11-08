@@ -370,7 +370,7 @@ void GameState_Update(GameState* gameState) {
         }
 
         // Bombchus (max: 50, no upgrades)
-        if (AMMO(ITEM_BOMBCHU) < 50) {
+        if (INV_CONTENT(ITEM_BOMBCHU) == ITEM_BOMBCHU && AMMO(ITEM_BOMBCHU) < 50) {
             AMMO(ITEM_BOMBCHU) = 50;
         }
     }
@@ -389,10 +389,10 @@ void GameState_Update(GameState* gameState) {
 
     // Moon Jump On L
     if (CVar_GetS32("gMoonJumpOnL", 0) != 0) {
-        if (gGlobalCtx) {
-            Player* player = GET_PLAYER(gGlobalCtx);
+        if (gPlayState) {
+            Player* player = GET_PLAYER(gPlayState);
 
-            if (CHECK_BTN_ANY(gGlobalCtx->state.input[0].cur.button, BTN_L)) {
+            if (CHECK_BTN_ANY(gPlayState->state.input[0].cur.button, BTN_L)) {
                 player->actor.velocity.y = 6.34375f;
             }
         }
@@ -400,18 +400,18 @@ void GameState_Update(GameState* gameState) {
 
     // Permanent infinite sword glitch (ISG)
     if (CVar_GetS32("gEzISG", 0) != 0) {
-        if (gGlobalCtx) {
-            Player* player = GET_PLAYER(gGlobalCtx);
+        if (gPlayState) {
+            Player* player = GET_PLAYER(gPlayState);
             player->swordState = 1;
         }
     }
 
     // Unrestricted Items
     if (CVar_GetS32("gNoRestrictItems", 0) != 0) {
-        if (gGlobalCtx) {
-            u8 sunsBackup = gGlobalCtx->interfaceCtx.restrictions.sunsSong;
-            memset(&gGlobalCtx->interfaceCtx.restrictions, 0, sizeof(gGlobalCtx->interfaceCtx.restrictions));
-            gGlobalCtx->interfaceCtx.restrictions.sunsSong = sunsBackup;
+        if (gPlayState) {
+            u8 sunsBackup = gPlayState->interfaceCtx.restrictions.sunsSong;
+            memset(&gPlayState->interfaceCtx.restrictions, 0, sizeof(gPlayState->interfaceCtx.restrictions));
+            gPlayState->interfaceCtx.restrictions.sunsSong = sunsBackup;
         }
     }
 

@@ -24,14 +24,9 @@ void BootCommands_Init()
 {
     CVar_RegisterS32("gDebugEnabled", 0);
     CVar_RegisterS32("gLanguages", 0); //0 = English / 1 = German / 2 = French
-    CVar_RegisterS32("gHudColors", 1); //0 = N64 / 1 = NGC / 2 = Custom
+    CVar_RegisterS32("gHudColors", 0); //0 = N64 / 1 = NGC / 2 = Custom
 	CVar_RegisterS32("gInvertYAxis", 1);
     CVar_RegisterS32("gTrailDuration", 4); // 4 = Default trail duration
-    if (ResourceMgr_IsGameMasterQuest()) {
-        CVar_SetS32("gRandomizer", 0);
-    } else {
-        CVar_RegisterS32("gRandomizer", 0);
-    }
 #if defined(_WIN32) || defined(__APPLE__)
     CVar_RegisterS32("gAccessibleInteraction", 0);
     CVar_RegisterS32("gMoreTargets", 0);
