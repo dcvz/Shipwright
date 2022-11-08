@@ -1,6 +1,6 @@
 #include "savestates.h"
 
-#include <libultraship/GameVersions.h>
+#include <GameVersions.h>
 
 #include <cstdio> // std::sprintf
 
@@ -9,7 +9,7 @@
 #include <soh/OTRGlobals.h>
 #include <soh/OTRAudio.h>
 
-#include <libultraship/ImGuiImpl.h>
+#include <ImGuiImpl.h>
 
 #include "z64.h"
 #include "z64save.h"
