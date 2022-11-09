@@ -9,7 +9,7 @@ jobs:
   extract-assets:
     runs-on: [ self-hosted, asset-builder ]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
     - name: Extract assets
@@ -27,7 +27,7 @@ jobs:
     needs: extract-assets
     runs-on: macos-12
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
     - name: ccache
@@ -87,7 +87,7 @@ jobs:
     needs: extract-assets
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
     - name: Install dependencies
@@ -152,7 +152,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
     - name: ccache
@@ -189,7 +189,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
     - name: ccache
@@ -229,7 +229,7 @@ jobs:
       run: |
         choco install ninja
         Remove-Item -Path "C:\ProgramData\Chocolatey\bin\ccache.exe" -Force
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
     - name: ccache
