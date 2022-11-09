@@ -8,7 +8,7 @@
 #include <Cvar.h>
 
 #define NOGDI // avoid various windows defines that conflict with things in z64.h
-#include "spdlog/spdlog.h"
+#include <spdlog/spdlog.h>
 
 #include <fstream>
 #include <filesystem>
