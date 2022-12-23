@@ -28,6 +28,7 @@ public:
 
     bool HasMasterQuest();
     bool HasOriginal();
+    std::vector<std::string> AvailableMods();
     std::shared_ptr<std::vector<std::string>> ListFiles(std::string path);
 
 private:

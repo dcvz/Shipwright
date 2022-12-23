@@ -178,6 +178,27 @@ bool OTRGlobals::HasOriginal() {
     return hasOriginal;
 }
 
+std::vector<std::string> OTRGlobals::AvailableMods() {
+    std::string patchesPath = Ship::Window::GetPathRelativeToAppDirectory("mods");
+    std::vector<std::string> mods;
+    if (patchesPath.length() > 0 && std::filesystem::exists(patchesPath)) {
+        if (std::filesystem::is_directory(patchesPath)) {
+            for (const auto& p : std::filesystem::recursive_directory_iterator(patchesPath)) {
+                if (StringHelper::IEquals(p.path().extension().string(), ".otr")) {
+                    if (StringHelper::IEquals(p.path().filename().string(), "oot.otr") ||
+                        StringHelper::IEquals(p.path().filename().string(), "oot-mq.otr")) {
+                        continue;
+                    }
+
+                    mods.push_back(p.path().filename().generic_string());
+                }
+            }
+        }
+    }
+
+    return mods;
+}
+
 std::shared_ptr<std::vector<std::string>> OTRGlobals::ListFiles(std::string path) {
     return context->GetResourceManager()->ListFiles(path);
 }
