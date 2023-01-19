@@ -34,33 +34,14 @@ jobs:
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         key: ${{ runner.os }}-ccache
-    - name: Install gtar wrapper
-      run: |
-        sudo mv /usr/local/bin/gtar /usr/local/bin/gtar.orig
-        sudo cp .github/workflows//gtar /usr/local/bin/gtar
-        sudo chmod +x /usr/local/bin/gtar
-    - name: Cache MacPorts
-      id: cache-macports
-      uses: actions/cache@v2
-      with:
-        path: /opt/local/
-        key: ${{ runner.os }}-macports-${{ hashFiles('.github/workflows/macports-deps.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-macports-
-    - name: Install MacPorts (if necessary)
-      run: |
-        if [ -d /opt/local/ ]; then
-          echo "MacPorts already installed"
-        else
-          wget https://github.com/macports/macports-base/releases/download/v2.7.2/MacPorts-2.7.2-12-Monterey.pkg
-          sudo installer -pkg ./MacPorts-2.7.2-12-Monterey.pkg -target /
-        fi
-        echo "/opt/local/bin:/opt/local/sbin" >> $GITHUB_PATH
-    - name: Install dependencies
+    - name: Install brew dependencies
       run: |
         brew uninstall --ignore-dependencies libpng
-        sudo port install $(cat .github/workflows/macports-deps.txt)
         brew install ninja
+    - name: Install MacPorts dependencies
+      uses: dcvz/macports-action@v0.0.2
+      with:
+        dependencies: '["libsdl2 +universal", "libpng +universal", "glew +universal"]'
     - name: Restore assets
       uses: actions/download-artifact@v3
       with:
@@ -93,7 +74,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y $(cat .github/workflows/apt-deps.txt)
+        sudo apt-get install -y libsdl2-dev libsdl2-net-dev libpng-dev libglew-dev ninja-build
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
