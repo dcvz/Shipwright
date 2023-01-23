@@ -259,6 +259,7 @@ source_group("Header Files\\soh\\Enhancements\\item-tables" FILES ${Header_Files
 
 set(Header_Files__soh__Enhancements__game_interactor
     "soh/Enhancements/game-interactor/GameInteractor.h"
+    "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
     "soh/Enhancements/game-interactor/GameInteractionEffect.h"
 )
 source_group("Header Files\\soh\\Enhancements\\game-interactor" FILES ${Header_Files__soh__Enhancements__game_interactor})
@@ -610,6 +611,7 @@ source_group("Source Files\\soh\\Enhancements\\item-tables" FILES ${Source_Files
 set(Source_Files__soh__Enhancements__game_interactor
     "soh/Enhancements/game-interactor/GameInteractor.cpp"
     "soh/Enhancements/game-interactor/GameInteractor_Actions.cpp"
+    "soh/Enhancements/game-interactor/GameInteractor_Hooks.cpp"
     "soh/Enhancements/game-interactor/GameInteractionEffect.cpp"
 )
 source_group("Source Files\\soh\\Enhancements\\game-interactor" FILES ${Source_Files__soh__Enhancements__game_interactor})
