@@ -7,7 +7,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build-macos:
-    runs-on: ${{ vars.MAC_RUNNER || 'macos-12' }}
+    runs-on: ${{ (vars.MAC_RUNNER && fromJSON(vars.MAC_RUNNER)) || 'macos-latest' }}
     steps:
     - uses: actions/checkout@v3
       with:
