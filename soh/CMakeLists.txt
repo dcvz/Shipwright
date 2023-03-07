@@ -145,15 +145,6 @@ if (!BUILD_CROWD_CONTROL)
     list(FILTER soh__Enhancements EXCLUDE REGEX "soh/Enhancements/crowd-control/*")
 endif()
 
-# handle speechsynthesizer removals
-if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    list(FILTER soh__Enhancements EXCLUDE REGEX "soh/Enhancements/speechsynthesizer/Darwin*")
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    list(FILTER soh__Enhancements EXCLUDE REGEX "soh/Enhancements/speechsynthesizer/SAPI*")
-else()
-    list(FILTER soh__Enhancements EXCLUDE REGEX "soh/Enhancements/speechsynthesizer/(Darwin|SAPI).*")
-endif()
-
 source_group("soh\\Enhancements" REGULAR_EXPRESSION "soh/Enhancements/*")
 source_group("soh\\Enhancements\\audio" REGULAR_EXPRESSION "soh/Enhancements/audio/*")
 source_group("soh\\Enhancements\\controls" REGULAR_EXPRESSION "soh/Enhancements/controls/*")
@@ -167,7 +158,6 @@ source_group("soh\\Enhancements\\randomizer" REGULAR_EXPRESSION "soh/Enhancement
 source_group("soh\\Enhancements\\randomizer\\3drando" REGULAR_EXPRESSION "soh/Enhancements/randomizer/3drando/*")
 source_group("soh\\Enhancements\\randomizer\\3drando\\hint_list" REGULAR_EXPRESSION "soh/Enhancements/randomizer/3drando/hint_list/*")
 source_group("soh\\Enhancements\\randomizer\\3drando\\location_access" REGULAR_EXPRESSION "soh/Enhancements/randomizer/3drando/location_access/*")
-source_group("soh\\Enhancements\\speechsynthesizer" REGULAR_EXPRESSION "soh/Enhancements/speechsynthesizer/*")
 source_group("soh\\Enhancements\\tts" REGULAR_EXPRESSION "soh/Enhancements/tts/*")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -316,6 +306,18 @@ else()
     set(BOOST-INCLUDE ${Boost_INCLUDE_DIRS})
 endif()
 ################################################################################
+# Rust Build
+################################################################################
+FetchContent_Declare(
+    Corrosion
+    GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
+    GIT_TAG        v0.3
+)
+FetchContent_MakeAvailable(Corrosion)
+
+corrosion_import_crate(MANIFEST_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../helix/Cargo.toml)
+
+################################################################################
 # Compile definitions
 ################################################################################
 find_package(SDL2)
@@ -329,6 +331,7 @@ endif()
 target_include_directories(${PROJECT_NAME} PRIVATE assets
 	${CMAKE_CURRENT_SOURCE_DIR}/include/
 	${CMAKE_CURRENT_SOURCE_DIR}/src/
+    ${CMAKE_CURRENT_SOURCE_DIR}/../helix/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../libultraship
     ${CMAKE_CURRENT_SOURCE_DIR}/../libultraship/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../libultraship/src/binarytools
@@ -604,12 +607,15 @@ endif()
 add_dependencies(${PROJECT_NAME}
     ZAPDUtils
     libultraship
+    helix
 )
+
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
 		set(ADDITIONAL_LIBRARY_DEPENDENCIES
 			"libultraship;"
+            "helix;"
 			"ZAPDUtils;"
 			"glu32;"
 			"SDL2::SDL2;"
@@ -624,6 +630,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	elseif("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32") 
 		set(ADDITIONAL_LIBRARY_DEPENDENCIES
 			"libultraship;"
+            "helix;"
 			"ZAPDUtils;"
 			"glu32;"
 			"SDL2::SDL2;"
@@ -641,6 +648,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     find_package(Threads REQUIRED)
     set(ADDITIONAL_LIBRARY_DEPENDENCIES
         "libultraship;"
+        "helix;"
         "ZAPDUtils;"
         SDL2::SDL2
         -lglad
@@ -650,6 +658,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
     find_package(SDL2 REQUIRED)
     set(ADDITIONAL_LIBRARY_DEPENDENCIES
         "libultraship;"
+        "helix;"
         "ZAPDUtils;"
         SDL2::SDL2-static
 
@@ -664,6 +673,7 @@ else()
     find_package(Threads REQUIRED)
  	set(ADDITIONAL_LIBRARY_DEPENDENCIES
         "libultraship;"
+        "helix;"
         "ZAPDUtils;"
 		SDL2::SDL2
         "$<$<BOOL:${BUILD_CROWD_CONTROL}>:SDL2_net::SDL2_net>"

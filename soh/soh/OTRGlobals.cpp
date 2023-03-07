@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <helix/helix.h>
 
 #include <ResourceMgr.h>
 #include <OtrFile.h>
@@ -27,7 +28,6 @@
 #define DRWAV_IMPLEMENTATION
 #include <dr_libs/wav.h>
 #include <AudioPlayer.h>
-#include "Enhancements/speechsynthesizer/SpeechSynthesizer.h"
 #include "Enhancements/controls/GameControlEditor.h"
 #include "Enhancements/cosmetics/CosmeticsEditor.h"
 #include "Enhancements/audio/AudioCollection.h"
@@ -112,7 +112,6 @@ CustomMessageManager* CustomMessageManager::Instance;
 ItemTableManager* ItemTableManager::Instance;
 GameInteractor* GameInteractor::Instance;
 AudioCollection* AudioCollection::Instance;
-SpeechSynthesizer* SpeechSynthesizer::Instance;
 
 extern "C" char** cameraStrings;
 std::vector<std::shared_ptr<std::string>> cameraStdStrings;
@@ -581,13 +580,6 @@ extern "C" void InitOTR() {
     ItemTableManager::Instance = new ItemTableManager();
     GameInteractor::Instance = new GameInteractor();
     AudioCollection::Instance = new AudioCollection();
-#ifdef __APPLE__
-    SpeechSynthesizer::Instance = new DarwinSpeechSynthesizer();
-    SpeechSynthesizer::Instance->Init();
-#elif defined(_WIN32)
-    SpeechSynthesizer::Instance = new SAPISpeechSynthesizer();
-    SpeechSynthesizer::Instance->Init();
-#endif
     
     clearMtx = (uintptr_t)&gMtxClear;
     OTRMessage_Init();
@@ -595,6 +587,7 @@ extern "C" void InitOTR() {
     InitCosmeticsEditor();
     GameControlEditor::Init();
     InitAudioEditor();
+    HLXSpeechSynthesizerInit();
     DebugConsole_Init();
     Debug_Init();
     Rando_Init();
@@ -627,9 +620,7 @@ extern "C" void InitOTR() {
 
 extern "C" void DeinitOTR() {
     OTRAudio_Exit();
-#if defined(_WIN32) || defined(__APPLE__)
-    SpeechSynthesizerUninitialize();
-#endif
+    HLXSpeechSynthesizerDeinit();
 #ifdef ENABLE_CROWD_CONTROL
     CrowdControl::Instance->Disable();
     CrowdControl::Instance->Shutdown();
