@@ -679,6 +679,9 @@ else()
         "$<$<BOOL:${BUILD_CROWD_CONTROL}>:SDL2_net::SDL2_net>"
 		${CMAKE_DL_LIBS}
 		Threads::Threads
+        "$<$<PLATFORM_ID:Darwin>:-framework CoreFoundation>"
+        "$<$<PLATFORM_ID:Darwin>:-framework AudioToolbox>"
+        "$<$<PLATFORM_ID:Darwin>:-framework CoreAudio>"
 	)
 endif()
 

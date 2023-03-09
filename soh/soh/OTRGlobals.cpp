@@ -410,6 +410,7 @@ extern "C" void OTRAudio_Exit() {
 
     // Wait until the audio thread quit
     audio.thread.join();
+    HLXAudioPlayerDeinit();
 }
 
 extern "C" void VanillaItemTable_Init() {
@@ -1355,19 +1356,19 @@ extern "C" int16_t OTRGetRectDimensionFromRightEdge(float v) {
 }
 
 extern "C" bool AudioPlayer_Init(void) {
-    return AudioPlayerInit();
+    return HLXAudioPlayerInit(44100, 2);
 }
 
 extern "C" int AudioPlayer_Buffered(void) {
-    return AudioPlayerBuffered();
+    return HLXAudioPlayerGetBuffered();
 }
 
 extern "C" int AudioPlayer_GetDesiredBuffered(void) {
-    return AudioPlayerGetDesiredBuffered();
+    return HLXAudioPlayerGetDesiredBuffered();
 }
 
 extern "C" void AudioPlayer_Play(const uint8_t* buf, uint32_t len) {
-    AudioPlayerPlayFrame(buf, len);
+    HLXAudioPlayerPlayBuffer(buf, len);
 }
 
 extern "C" int Controller_ShouldRumble(size_t slot) {
