@@ -7,7 +7,6 @@
 #include "stdint.h"
 
 #ifdef __cplusplus
-#include <SDL2/SDL_net.h>
 #include <cstdint>
 #include <thread>
 #include <memory>
@@ -74,11 +73,7 @@ class CrowdControl {
             EffectResult lastExecutionResult;
         } Effect;
         
-        std::thread ccThreadReceive;
         std::thread ccThreadProcess;
-
-        TCPsocket tcpsock;
-        IPaddress ip;
 
         bool isEnabled;
         bool connected;
@@ -91,8 +86,8 @@ class CrowdControl {
         void ListenToServer();
         void ProcessActiveEffects();
 
-        void EmitMessage(TCPsocket socket, uint32_t eventId, long timeRemaining, EffectResult status);
-        Effect* ParseMessage(char payload[512]);
+        void EmitMessage(uint32_t eventId, long timeRemaining, EffectResult status);
+        Effect* ParseMessage(const char* payload);
         EffectResult ExecuteEffect(Effect* effect);
         EffectResult CanApplyEffect(Effect *effect);
         EffectResult TranslateGiEnum(GameInteractionEffectQueryResult giResult);
@@ -103,6 +98,7 @@ class CrowdControl {
         void Shutdown();
         void Enable();
         void Disable();
+        void OnMessage(const char* data);
 };
 #endif
 #endif
