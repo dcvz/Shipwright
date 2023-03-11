@@ -625,6 +625,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 			"winmm;"
 			"imm32;"
 			"version;"
+            "ntdll;"
 			"setupapi"
 		)
 	elseif("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32") 
@@ -639,6 +640,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 			"winmm;"
 			"imm32;"
 			"version;"
+            "ntdll;"
 			"setupapi"
 		)
 	endif()
