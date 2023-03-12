@@ -3,4 +3,4 @@
 	url = https://github.com/kenix3/libultraship.git
 [submodule "helix"]
 	path = helix
-	url = git@github.com:dcvz/helix.git
+	url = https://github.com/dcvz/helix.git
