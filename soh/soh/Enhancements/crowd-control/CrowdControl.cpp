@@ -9,6 +9,7 @@
 #include <spdlog/fmt/fmt.h>
 #include <regex>
 #include <helix/network.h>
+#include "soh/OTRGlobals.h"
 
 extern "C" {
 #include <z64.h>
@@ -91,7 +92,7 @@ void CrowdControl::Enable() {
     ccThreadProcess = std::thread(&CrowdControl::ProcessActiveEffects, this);
     
     char host[] = "127.0.0.1";
-    HLX_TCPConnect(host, 43384, &OnMessageCallback);
+    HLXTCPConnect(OTRGlobals::TCPStream, host, 43384, &OnMessageCallback);
 }
 
 void CrowdControl::Disable() {
@@ -101,7 +102,7 @@ void CrowdControl::Disable() {
 
     isEnabled = false;
     ccThreadProcess.join();
-    HLX_TCPDisconnect();
+    HLXTCPDisconnect(OTRGlobals::TCPStream);
 }
 
 extern "C" void CrowdControl::OnMessage(const char* data) {
@@ -203,7 +204,7 @@ void CrowdControl::EmitMessage(uint32_t eventId, long timeRemaining, EffectResul
     payload["status"] = status;
 
     std::string jsonPayload = payload.dump();
-    HLX_TCPSendMessage(jsonPayload.c_str());
+    HLXTCPSendMessage(OTRGlobals::TCPStream, jsonPayload.c_str());
 }
 
 CrowdControl::Effect* CrowdControl::ParseMessage(const char* payload) {

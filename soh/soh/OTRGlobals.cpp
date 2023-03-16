@@ -1,4 +1,4 @@
-﻿#include "OTRGlobals.h"
+#include "OTRGlobals.h"
 #include "OTRAudio.h"
 #include <iostream>
 #include <algorithm>
@@ -107,6 +107,9 @@ CrowdControl* CrowdControl::Instance;
 #include "soh/resource/importer/BackgroundFactory.h"
 
 OTRGlobals* OTRGlobals::Instance;
+void* OTRGlobals::AudioPlayer;
+void* OTRGlobals::SpeechSynthesizer;
+void* OTRGlobals::TCPStream;
 SaveManager* SaveManager::Instance;
 CustomMessageManager* CustomMessageManager::Instance;
 ItemTableManager* ItemTableManager::Instance;
@@ -410,7 +413,7 @@ extern "C" void OTRAudio_Exit() {
 
     // Wait until the audio thread quit
     audio.thread.join();
-    HLXAudioPlayerDeinit();
+    HLXAudioPlayerDeinit(OTRGlobals::AudioPlayer);
 }
 
 extern "C" void VanillaItemTable_Init() {
@@ -581,6 +584,12 @@ extern "C" void InitOTR() {
     ItemTableManager::Instance = new ItemTableManager();
     GameInteractor::Instance = new GameInteractor();
     AudioCollection::Instance = new AudioCollection();
+    OTRGlobals::AudioPlayer = HLXAudioPlayerCreate();
+    OTRGlobals::SpeechSynthesizer = HLXSpeechSynthesizerCreate();
+    
+#ifdef ENABLE_CROWD_CONTROL
+    TCPStream = HLXTCPCreate();
+#endif
     
     clearMtx = (uintptr_t)&gMtxClear;
     OTRMessage_Init();
@@ -588,7 +597,7 @@ extern "C" void InitOTR() {
     InitCosmeticsEditor();
     GameControlEditor::Init();
     InitAudioEditor();
-    HLXSpeechSynthesizerInit();
+    HLXSpeechSynthesizerInit(OTRGlobals::SpeechSynthesizer);
     DebugConsole_Init();
     Debug_Init();
     Rando_Init();
@@ -618,7 +627,7 @@ extern "C" void InitOTR() {
 
 extern "C" void DeinitOTR() {
     OTRAudio_Exit();
-    HLXSpeechSynthesizerDeinit();
+    HLXSpeechSynthesizerDeinit(OTRGlobals::SpeechSynthesizer);
 #ifdef ENABLE_CROWD_CONTROL
     CrowdControl::Instance->Disable();
 #endif
@@ -1352,19 +1361,19 @@ extern "C" int16_t OTRGetRectDimensionFromRightEdge(float v) {
 }
 
 extern "C" bool AudioPlayer_Init(void) {
-    return HLXAudioPlayerInit(44100, 2);
+    return HLXAudioPlayerInit(OTRGlobals::AudioPlayer, 44100, 2);
 }
 
 extern "C" int AudioPlayer_Buffered(void) {
-    return HLXAudioPlayerGetBuffered();
+    return HLXAudioPlayerGetBuffered(OTRGlobals::AudioPlayer);
 }
 
 extern "C" int AudioPlayer_GetDesiredBuffered(void) {
-    return HLXAudioPlayerGetDesiredBuffered();
+    return HLXAudioPlayerGetDesiredBuffered(OTRGlobals::AudioPlayer);
 }
 
 extern "C" void AudioPlayer_Play(const uint8_t* buf, uint32_t len) {
-    HLXAudioPlayerPlayBuffer(buf, len);
+    HLXAudioPlayerPlayBuffer(OTRGlobals::AudioPlayer, buf, len);
 }
 
 extern "C" int Controller_ShouldRumble(size_t slot) {
