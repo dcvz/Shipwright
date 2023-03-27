@@ -291,9 +291,26 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	set_target_properties(${PROJECT_NAME} PROPERTIES MSVC_RUNTIME_LIBRARY ${MSVC_RUNTIME_LIBRARY_STR})
 endif()
 ################################################################################
-# Find/download Boost
+# Integrate Rust Dependencies
 ################################################################################
 include(FetchContent)
+FetchContent_Declare(
+    Corrosion
+    GIT_REPOSITORY https://github.com/dcvz/corrosion.git
+    GIT_TAG        3e4483e162acdf8e0799d6705a056592cd9761ee
+)
+FetchContent_MakeAvailable(Corrosion)
+
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(CORROSION_LINK_LIBRARIES "asound")
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(CORROSION_LINK_LIBRARIES "-framework Foundation" "-framework AVFoundation" "-framework CoreFoundation" "-framework CoreAudio" "-framework AudioToolbox")
+endif()
+
+corrosion_import_crate(MANIFEST_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../arie/Cargo.toml NATIVE_LIBS ${CORROSION_LINK_LIBRARIES})
+################################################################################
+# Find/download Boost
+################################################################################
 FetchContent_Declare(
     Boost
     URL      https://boostorg.jfrog.io/artifactory/main/release/1.81.0/source/boost_1_81_0.tar.gz
@@ -330,6 +347,7 @@ endif()
 target_include_directories(${PROJECT_NAME} PRIVATE assets
 	${CMAKE_CURRENT_SOURCE_DIR}/include/
 	${CMAKE_CURRENT_SOURCE_DIR}/src/
+    ${CMAKE_CURRENT_SOURCE_DIR}/../arie/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../libultraship
     ${CMAKE_CURRENT_SOURCE_DIR}/../libultraship/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../libultraship/src/binarytools
@@ -605,12 +623,14 @@ endif()
 add_dependencies(${PROJECT_NAME}
     ZAPDUtils
     libultraship
+    arie
 )
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	if("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "x64")
 		set(ADDITIONAL_LIBRARY_DEPENDENCIES
 			"libultraship;"
+            "arie;"
 			"ZAPDUtils;"
 			"glu32;"
 			"SDL2::SDL2;"
@@ -625,6 +645,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	elseif("${CMAKE_VS_PLATFORM_NAME}" STREQUAL "Win32") 
 		set(ADDITIONAL_LIBRARY_DEPENDENCIES
 			"libultraship;"
+            "arie;"
 			"ZAPDUtils;"
 			"glu32;"
 			"SDL2::SDL2;"
@@ -642,6 +663,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
     find_package(Threads REQUIRED)
     set(ADDITIONAL_LIBRARY_DEPENDENCIES
         "libultraship;"
+        "arie;"
         "ZAPDUtils;"
         SDL2::SDL2
         -lglad
@@ -651,6 +673,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
     find_package(SDL2 REQUIRED)
     set(ADDITIONAL_LIBRARY_DEPENDENCIES
         "libultraship;"
+        "arie;"
         "ZAPDUtils;"
         SDL2::SDL2-static
 
@@ -665,6 +688,7 @@ else()
     find_package(Threads REQUIRED)
  	set(ADDITIONAL_LIBRARY_DEPENDENCIES
         "libultraship;"
+        "arie;"
         "ZAPDUtils;"
 		SDL2::SDL2
         "$<$<BOOL:${BUILD_CROWD_CONTROL}>:SDL2_net::SDL2_net>"

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <arie/arie.h>
 
 #include <ResourceMgr.h>
 #include <OtrFile.h>
@@ -113,6 +114,7 @@ ItemTableManager* ItemTableManager::Instance;
 GameInteractor* GameInteractor::Instance;
 AudioCollection* AudioCollection::Instance;
 SpeechSynthesizer* SpeechSynthesizer::Instance;
+void* OTRGlobals::AudioPlayer;
 
 extern "C" char** cameraStrings;
 std::vector<std::shared_ptr<std::string>> cameraStdStrings;
@@ -411,6 +413,7 @@ extern "C" void OTRAudio_Exit() {
 
     // Wait until the audio thread quit
     audio.thread.join();
+    AudioPlayerFree(OTRGlobals::AudioPlayer);
 }
 
 extern "C" void VanillaItemTable_Init() {
@@ -1364,19 +1367,21 @@ extern "C" int16_t OTRGetRectDimensionFromRightEdge(float v) {
 }
 
 extern "C" bool AudioPlayer_Init(void) {
-    return AudioPlayerInit();
+    OTRGlobals::AudioPlayer = AudioPlayerCreate(44100, 2);
+    AudioPlayerPlay(OTRGlobals::AudioPlayer);
+    return OTRGlobals::AudioPlayer != nullptr;
 }
 
 extern "C" int AudioPlayer_Buffered(void) {
-    return AudioPlayerBuffered();
+    return AudioPlayerGetBufferredSampleCount(OTRGlobals::AudioPlayer);
 }
 
 extern "C" int AudioPlayer_GetDesiredBuffered(void) {
-    return AudioPlayerGetDesiredBuffered();
+    return AudioPlayerGetBufferSize(OTRGlobals::AudioPlayer) / 4;
 }
 
 extern "C" void AudioPlayer_Play(const uint8_t* buf, uint32_t len) {
-    AudioPlayerPlayFrame(buf, len);
+    AudioPlayerQueueBuffer(OTRGlobals::AudioPlayer, buf, len);
 }
 
 extern "C" int Controller_ShouldRumble(size_t slot) {

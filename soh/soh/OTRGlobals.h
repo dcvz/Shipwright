@@ -18,6 +18,7 @@ class OTRGlobals
 {
 public:
     static OTRGlobals* Instance;
+    static void* AudioPlayer;
 
     std::shared_ptr<Ship::Window> context;
     std::shared_ptr<SaveStateMgr> gSaveStateMgr;
